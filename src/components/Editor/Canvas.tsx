@@ -10,7 +10,7 @@ import DimOverlay from "./DimOverlay";
 import { CanvasNode, FrameNode, TextNode, BoxNode, LineNode, ArrowNode, ButtonNode, InputNode, CardNode, GroupNode } from "@/types";
 
 export default function Canvas() {
-    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, addNode, toolMode, setToolMode, gridSize, paintLayer, addPaint, removePaint, undo, redo, pushSnapshot } = useEditor();
+    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
     const {
         zoom,
         pan,
@@ -55,18 +55,23 @@ export default function Canvas() {
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState("");
 
-    // Start Editing
+    // Start Editing or Enter Group
     const handleDoubleClick = (e: React.MouseEvent, node: CanvasNode) => {
         e.stopPropagation();
+        if (node.locked) return;
         if (node.type === 'TEXT') {
             setEditingNodeId(node.id);
             setEditingText(node.text);
             setIsDraggingNode(false); // Cancel drag if any
+        } else if (node.type === 'GROUP') {
+            // Enter group edit mode
+            setActiveGroupId(node.id);
+            setSelection([]); // Clear selection when entering group
         }
     };
 
     const startNodeDrag = (e: React.PointerEvent, node: CanvasNode) => {
-        if (isSpacePressed || e.button === 1) return;
+        if (isSpacePressed || e.button === 1 || node.locked) return;
         if (node.type === 'TEXT' && editingNodeId === node.id) return;
         e.stopPropagation();
 
@@ -79,6 +84,22 @@ export default function Canvas() {
             if (groupParent) {
                 targetNode = groupParent;
             }
+        } // ADDED THIS BRACKET to close node.groupId check
+
+        if (activeGroupId && targetNode.groupId !== activeGroupId && targetNode.id !== activeGroupId) {
+            // If in a group edit mode, only allow interacting with children of active group
+            // Determine if the target node is a descendant of the active group
+            let isDescendant = false;
+            let currentGroupId = targetNode.groupId;
+            while (currentGroupId) {
+                if (currentGroupId === activeGroupId) {
+                    isDescendant = true;
+                    break;
+                }
+                const parent = nodes.find(n => n.id === currentGroupId);
+                currentGroupId = parent?.groupId;
+            }
+            if (!isDescendant) return; // Ignore drag start outside active group
         }
 
         const isSelected = selectedNodeIds.includes(targetNode.id);
@@ -157,6 +178,15 @@ export default function Canvas() {
             if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
                 e.preventDefault();
                 redo();
+            }
+            // Grouping selected nodes
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    ungroupNodes();
+                } else {
+                    groupNodes();
+                }
             }
         };
 
@@ -269,6 +299,22 @@ export default function Canvas() {
 
                 console.log("Dragging node:", dragRef.current.nodeId, "deltaWorld:", deltaWorldX, deltaWorldY);
 
+                const targetNode = nodes.find(n => n.id === dragRef.current?.nodeId);
+                // Restrict drag inside activeGroupId
+                if (targetNode && activeGroupId) {
+                    let isDescendant = false;
+                    let currentGroupId = targetNode.groupId;
+                    while (currentGroupId) {
+                        if (currentGroupId === activeGroupId) {
+                            isDescendant = true;
+                            break;
+                        }
+                        const parent = nodes.find(n => n.id === currentGroupId);
+                        currentGroupId = parent?.groupId;
+                    }
+                    if (!isDescendant && targetNode.id !== activeGroupId) return;
+                }
+
                 if (!dragRef.current.historyRecorded) {
                     pushSnapshot();
                     dragRef.current.historyRecorded = true;
@@ -371,6 +417,8 @@ export default function Canvas() {
 
                 if (width > 0 && height > 0) {
                     nodes.forEach(node => {
+                        if (node.visible === false || node.locked) return;
+
                         // Quick bounding box check
                         let nodeX = node.x;
                         let nodeY = node.y;
@@ -447,7 +495,7 @@ export default function Canvas() {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
         };
-    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection]);
+    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection, dragRef]);
 
     // Refs to store latest state
     const zoomRef = useRef(zoom);
@@ -617,7 +665,7 @@ export default function Canvas() {
                 <GridBackground />
 
                 {/* Paint Layer */}
-                {Array.from(paintLayer).map((key) => {
+                {paintLayerVisible && Array.from(paintLayer).map((key) => {
                     const [cx, cy] = key.split(',').map(Number);
                     return (
                         <div
@@ -635,7 +683,7 @@ export default function Canvas() {
             </div>
 
             <div className="absolute inset-0 pointer-events-none">
-                {nodes.map((node) => {
+                {nodes.filter(n => n.visible !== false).map((node) => {
                     let x = node.x;
                     let y = node.y;
                     let width = 0;
@@ -851,7 +899,6 @@ export default function Canvas() {
                                     height: screen.height,
                                     fontSize: 14 * zoom,
                                 }}
-                                onPointerDown={(e) => startNodeDrag(e, node)}
                             >
                                 {node.placeholder}
                             </div>
@@ -876,34 +923,37 @@ export default function Canvas() {
                     }
                     return null;
                 })}
-
             </div>
 
             {/* Box Drawing Preview */}
-            {boxStartPos && currentMousePos && (
-                <div
-                    className="absolute border-2 border-blue-500 border-dashed bg-blue-100/20 pointer-events-none z-50"
-                    style={{
-                        left: worldToScreen({ x: Math.min(boxStartPos.x, currentMousePos.x), y: 0, width: 0, height: 0 }, pan, zoom).x,
-                        top: worldToScreen({ x: 0, y: Math.min(boxStartPos.y, currentMousePos.y), width: 0, height: 0 }, pan, zoom).y,
-                        width: Math.abs(currentMousePos.x - boxStartPos.x) * zoom,
-                        height: Math.abs(currentMousePos.y - boxStartPos.y) * zoom,
-                    }}
-                />
-            )}
+            {
+                boxStartPos && currentMousePos && (
+                    <div
+                        className="absolute border-2 border-blue-500 border-dashed bg-blue-100/20 pointer-events-none z-50"
+                        style={{
+                            left: worldToScreen({ x: Math.min(boxStartPos.x, currentMousePos.x), y: 0, width: 0, height: 0 }, pan, zoom).x,
+                            top: worldToScreen({ x: 0, y: Math.min(boxStartPos.y, currentMousePos.y), width: 0, height: 0 }, pan, zoom).y,
+                            width: Math.abs(currentMousePos.x - boxStartPos.x) * zoom,
+                            height: Math.abs(currentMousePos.y - boxStartPos.y) * zoom,
+                        }}
+                    />
+                )
+            }
 
             {/* Marquee Selection Preview */}
-            {isSelecting && selectionStartPos && selectionEndPos && (
-                <div
-                    className="absolute border border-blue-500 bg-blue-500/10 pointer-events-none z-50"
-                    style={{
-                        left: worldToScreen({ x: Math.min(selectionStartPos.x, selectionEndPos.x), y: 0, width: 0, height: 0 }, pan, zoom).x,
-                        top: worldToScreen({ x: 0, y: Math.min(selectionStartPos.y, selectionEndPos.y), width: 0, height: 0 }, pan, zoom).y,
-                        width: Math.abs(selectionEndPos.x - selectionStartPos.x) * zoom,
-                        height: Math.abs(selectionEndPos.y - selectionStartPos.y) * zoom,
-                    }}
-                />
-            )}
+            {
+                isSelecting && selectionStartPos && selectionEndPos && (
+                    <div
+                        className="absolute border border-blue-500 bg-blue-500/10 pointer-events-none z-50"
+                        style={{
+                            left: worldToScreen({ x: Math.min(selectionStartPos.x, selectionEndPos.x), y: 0, width: 0, height: 0 }, pan, zoom).x,
+                            top: worldToScreen({ x: 0, y: Math.min(selectionStartPos.y, selectionEndPos.y), width: 0, height: 0 }, pan, zoom).y,
+                            width: Math.abs(selectionEndPos.x - selectionStartPos.x) * zoom,
+                            height: Math.abs(selectionEndPos.y - selectionStartPos.y) * zoom,
+                        }}
+                    />
+                )
+            }
 
             <div className={`absolute bottom-4 left-4 bg-white/80 backdrop-blur p-2 rounded shadow text-xs space-y-1 z-20 pointer-events-none transition-opacity ${isDraggingNode || drawingNodeId || boxStartPos ? "opacity-50" : "opacity-100"}`}>
                 <div>Space + Drag to Pan</div>

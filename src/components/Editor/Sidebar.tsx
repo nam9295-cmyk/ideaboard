@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { MousePointer2, Type, Square, ArrowRight, Minus, Box, RectangleHorizontal, LayoutTemplate, PenTool, Eraser, Layout } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MousePointer2, Type, Square, ArrowRight, Minus, Box, RectangleHorizontal, LayoutTemplate, PenTool, Eraser, Layout, Layers } from "lucide-react";
 import { useEditor } from "@/context/EditorContext";
 import { ToolMode, FrameNode, CanvasNode, GroupNode } from "@/types";
 
@@ -251,7 +251,13 @@ export default function Sidebar() {
     );
 
     return (
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 shrink-0 h-full">
+        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 shrink-0 h-full">
+            <div className="flex border-b border-gray-200 shrink-0">
+                <div className="w-full py-3 text-xs font-bold uppercase tracking-widest text-center text-gray-500 bg-gray-50">
+                    Tools
+                </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 space-y-8">
 
                 {/* BASICS Functionality */}
@@ -315,13 +321,13 @@ export default function Sidebar() {
 
             </div>
 
-            <div className="p-4 border-t border-gray-200 bg-gray-50">
+            <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0">
                 <p className="text-xs text-gray-400">Project: Untitled</p>
                 <div className="mt-2 text-[10px] text-gray-300 flex space-x-2">
                     <span>V: Select</span>
                     <span>T: Text</span>
                 </div>
             </div>
-        </div>
+        </aside>
     );
 }

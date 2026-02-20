@@ -11,6 +11,10 @@ interface EditorState {
     pan: { x: number; y: number };
     setZoom: (zoom: number | ((prev: number) => number)) => void;
     setPan: (pan: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
+
+    activeGroupId: string | null;
+    setActiveGroupId: (id: string | null) => void;
+
     addNode: (node: CanvasNode) => void;
     addNodes: (nodes: CanvasNode[]) => void;
     updateNode: (id: string, updates: Partial<CanvasNode>, skipHistory?: boolean) => void;
@@ -20,6 +24,9 @@ interface EditorState {
     setSelection: (ids: string[]) => void;
     deleteNode: (id: string) => void;
     deleteNodes: (ids: string[]) => void;
+    groupNodes: () => void;
+    ungroupNodes: () => void;
+    reorderNode: (draggedId: string, targetId: string, position: 'above' | 'below') => void;
     toolMode: ToolMode;
     setToolMode: (mode: ToolMode) => void;
     dimOutsideFrames: boolean;
@@ -27,6 +34,8 @@ interface EditorState {
     gridSize: number;
     setGridSize: (size: number) => void;
     paintLayer: Set<string>;
+    paintLayerVisible: boolean;
+    setPaintLayerVisible: (visible: boolean) => void;
     addPaint: (key: string, skipHistory?: boolean) => void;
     removePaint: (key: string, skipHistory?: boolean) => void;
 
@@ -53,7 +62,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const [dimOutsideFrames, setDimOutsideFrames] = useState(false);
     const [gridSize, setGridSize] = useState(10);
     const [paintLayer, setPaintLayer] = useState<Set<string>>(new Set());
+    const [paintLayerVisible, setPaintLayerVisible] = useState(true);
     const [isLoaded, setIsLoaded] = useState(false);
+
+    // Group Edit State
+    const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
     // History
     const [history, setHistory] = useState<{ past: Snapshot[]; future: Snapshot[] }>({ past: [], future: [] });
@@ -164,6 +177,76 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setSelectedNodeIds((prev) => prev.filter((pid) => !ids.includes(pid)));
     };
 
+    const groupNodes = () => {
+        if (selectedNodeIds.length < 2) return;
+        const groupId = crypto.randomUUID();
+
+        pushSnapshot();
+        setNodes((prev) => {
+            const selected = prev.filter(n => selectedNodeIds.includes(n.id));
+            if (selected.length < 2) return prev;
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            selected.forEach(n => {
+                if (n.x < minX) minX = n.x;
+                if (n.y < minY) minY = n.y;
+                const w = n.width ?? 0;
+                const h = n.height ?? 0;
+                if (n.x + w > maxX) maxX = n.x + w;
+                if (n.y + h > maxY) maxY = n.y + h;
+            });
+
+            if (maxX === -Infinity) maxX = minX;
+            if (maxY === -Infinity) maxY = minY;
+
+            const firstGroupId = selected[0].groupId;
+            const allSameGroup = selected.every(n => n.groupId === firstGroupId);
+            const parentGroupId = allSameGroup ? firstGroupId : undefined;
+
+            const newGroup = {
+                id: groupId,
+                type: 'GROUP',
+                name: 'Group',
+                x: minX,
+                y: minY,
+                width: maxX - minX,
+                height: Math.max(0, maxY - minY),
+                groupId: parentGroupId
+            } as CanvasNode;
+
+            const next = prev.map(n => selectedNodeIds.includes(n.id) ? { ...n, groupId } : n);
+            return [...next, newGroup];
+        });
+
+        setSelectedNodeIds([groupId]);
+    };
+
+    const ungroupNodes = () => {
+        const selectedGroups = nodes.filter(n => n.type === 'GROUP' && selectedNodeIds.includes(n.id));
+        if (selectedGroups.length === 0) return;
+
+        pushSnapshot();
+        const groupIdsToRemove = new Set(selectedGroups.map(g => g.id));
+        const newSelectedIds: string[] = [];
+
+        setNodes((prev) => {
+            const next = prev.filter(n => !groupIdsToRemove.has(n.id)).map(n => {
+                if (n.groupId && groupIdsToRemove.has(n.groupId)) {
+                    // This node is a child of one of the groups being ungrouped
+                    const parentGroup = selectedGroups.find(g => g.id === n.groupId);
+                    newSelectedIds.push(n.id); // Select the children
+                    return { ...n, groupId: parentGroup?.groupId }; // Inherit the grandparent's groupId
+                }
+                return n;
+            });
+            return next;
+        });
+
+        // Also keep any non-group selected blocks selected
+        const nonGroupSelectedIds = selectedNodeIds.filter(id => !groupIdsToRemove.has(id));
+        setSelectedNodeIds([...nonGroupSelectedIds, ...newSelectedIds]);
+    };
+
     const selectNode = (id: string | null) => {
         if (id === null) {
             setSelectedNodeIds([]);
@@ -184,6 +267,32 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     const setSelection = (ids: string[]) => {
         setSelectedNodeIds(ids);
+    };
+
+    const reorderNode = (draggedId: string, targetId: string, position: 'above' | 'below') => {
+        pushSnapshot();
+        setNodes((prev) => {
+            const newNodes = [...prev];
+            const draggedIndex = newNodes.findIndex(n => n.id === draggedId);
+            const targetIndex = newNodes.findIndex(n => n.id === targetId);
+
+            if (draggedIndex === -1 || targetIndex === -1) return prev;
+
+            const [draggedNode] = newNodes.splice(draggedIndex, 1);
+
+            // Re-find target index since array length changed
+            const newTargetIndex = newNodes.findIndex(n => n.id === targetId);
+
+            // In LayersPanel, 'above' visually means higher Z-index (later in array).
+            // 'below' visually means lower Z-index (earlier in array).
+            if (position === 'above') {
+                newNodes.splice(newTargetIndex + 1, 0, draggedNode);
+            } else {
+                newNodes.splice(newTargetIndex, 0, draggedNode);
+            }
+
+            return newNodes;
+        });
     };
 
     const addPaint = (key: string, skipHistory = false) => {
@@ -209,9 +318,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             value={{
                 nodes,
                 zoom,
-                pan,
                 setZoom,
+                pan,
                 setPan,
+                activeGroupId,
+                setActiveGroupId,
                 addNode,
                 addNodes,
                 updateNode,
@@ -222,6 +333,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 setSelection,
                 deleteNode,
                 deleteNodes,
+                groupNodes,
+                ungroupNodes,
+                reorderNode,
                 toolMode,
                 setToolMode,
                 dimOutsideFrames,
@@ -229,6 +343,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 gridSize,
                 setGridSize,
                 paintLayer,
+                paintLayerVisible,
+                setPaintLayerVisible,
                 addPaint,
                 removePaint,
                 history,

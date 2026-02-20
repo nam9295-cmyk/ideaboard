@@ -9,6 +9,8 @@ export interface BaseNode {
     width?: number;
     height?: number;
     groupId?: string;
+    visible?: boolean;
+    locked?: boolean;
 }
 
 export interface FrameNode extends BaseNode {
