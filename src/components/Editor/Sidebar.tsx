@@ -51,46 +51,21 @@ export default function Sidebar() {
     const snapToGrid = (v: number) => Math.round(v / gridSize) * gridSize;
 
     const getPlacementPos = () => {
-        // Find selected frame
+        const canvasViewport = document.querySelector("main.flex-1.relative.overflow-hidden.bg-gray-100") as HTMLElement | null;
+        const viewportCenterScreenX = canvasViewport ? canvasViewport.clientWidth / 2 : window.innerWidth / 2;
+        const viewportCenterScreenY = canvasViewport ? canvasViewport.clientHeight / 2 : window.innerHeight / 2;
+
+        let worldX = (viewportCenterScreenX - pan.x) / zoom;
+        let worldY = (viewportCenterScreenY - pan.y) / zoom;
+
         const selectedFrame = nodes.find(n => n.type === 'FRAME' && selectedNodeIds.includes(n.id)) as FrameNode | undefined;
         if (selectedFrame) {
-            // Find nodes inside this frame to calculate the lowest Y position
-            const nodesInFrame = nodes.filter(n => {
-                if (n.id === selectedFrame.id) return false;
-                // Simple AABB check: if node's top-left is inside the frame
-                return n.x >= selectedFrame.x && n.x <= selectedFrame.x + selectedFrame.width &&
-                    n.y >= selectedFrame.y && n.y <= selectedFrame.y + selectedFrame.height;
-            });
-
-            let maxY = selectedFrame.y + 40; // Default padding from top
-
-            for (const node of nodesInFrame) {
-                // Not all nodes have height/endY explicitly cleanly typed in BaseNode without casting,
-                // but we can estimate based on type or properties.
-                let nodeBottom = node.y;
-                if ('height' in node && typeof node.height === 'number') {
-                    nodeBottom = node.y + node.height;
-                } else if ('endY' in node && typeof node.endY === 'number') {
-                    nodeBottom = Math.max(node.y, node.endY);
-                } else if (node.type === 'TEXT') {
-                    // Approximate text height based on font size and lines (simple heuristic)
-                    const textNode = node as any;
-                    const lines = (textNode.text || '').split('\n').length;
-                    nodeBottom = node.y + (textNode.fontSize || 16) * lines * 1.5;
-                }
-
-                if (nodeBottom + 40 > maxY) {
-                    maxY = nodeBottom + 40; // 40px margin below the lowest node
-                }
-            }
-
-            return { x: snapToGrid(selectedFrame.x + 40), y: snapToGrid(maxY) };
+            const margin = 40;
+            worldX = Math.max(selectedFrame.x + margin, Math.min(worldX, selectedFrame.x + selectedFrame.width - margin));
+            worldY = Math.max(selectedFrame.y + margin, Math.min(worldY, selectedFrame.y + selectedFrame.height - margin));
         }
 
-        // Center of viewport
-        const viewportCenterX = (window.innerWidth / 2 - pan.x) / zoom;
-        const viewportCenterY = (window.innerHeight / 2 - pan.y) / zoom;
-        return { x: snapToGrid(viewportCenterX), y: snapToGrid(viewportCenterY) };
+        return { x: snapToGrid(worldX), y: snapToGrid(worldY) };
     };
 
     const createBlockGroup = (
@@ -98,29 +73,140 @@ export default function Sidebar() {
         blockName: string
     ) => {
         const { x, y } = getPlacementPos();
-        const nodes = nodesFn(x, y);
+        let blockNodes = nodesFn(x, y);
+
+        const selectedFrame = nodes.find(n => n.type === 'FRAME' && selectedNodeIds.includes(n.id)) as FrameNode | undefined;
+        const allFrames = nodes.filter((n): n is FrameNode => n.type === 'FRAME');
+        const containingFrame = allFrames.find(
+            (f) => x >= f.x && x <= f.x + f.width && y >= f.y && y <= f.y + f.height
+        );
+        const nearestFrame = allFrames.length > 0
+            ? [...allFrames].sort((a, b) => {
+                const acx = a.x + a.width / 2;
+                const acy = a.y + a.height / 2;
+                const bcx = b.x + b.width / 2;
+                const bcy = b.y + b.height / 2;
+                const da = Math.hypot(acx - x, acy - y);
+                const db = Math.hypot(bcx - x, bcy - y);
+                return da - db;
+            })[0]
+            : undefined;
+        const targetFrame = selectedFrame || containingFrame || nearestFrame;
+
+        const getNodeBounds = (node: CanvasNode) => {
+            if (node.type === 'LINE' || node.type === 'ARROW') {
+                const minX = Math.min(node.x, node.endX);
+                const minY = Math.min(node.y, node.endY);
+                const maxX = Math.max(node.x, node.endX);
+                const maxY = Math.max(node.y, node.endY);
+                return { minX, minY, maxX, maxY };
+            }
+
+            if (node.type === 'TEXT') {
+                const lines = (node.text || "").split("\n");
+                const longestLine = lines.reduce((max, line) => Math.max(max, line.length), 0);
+                const fontSize = node.fontSize || 16;
+                const textWidth = Math.max(10, longestLine * fontSize * 0.56);
+                const textHeight = Math.max(fontSize * 1.4, lines.length * fontSize * 1.4);
+                return {
+                    minX: node.x,
+                    minY: node.y,
+                    maxX: node.x + textWidth,
+                    maxY: node.y + textHeight,
+                };
+            }
+
+            const width = node.width || 0;
+            const height = node.height || 0;
+            return {
+                minX: node.x,
+                minY: node.y,
+                maxX: node.x + width,
+                maxY: node.y + height,
+            };
+        };
 
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        nodes.forEach(n => {
-            const nx = n.x;
-            const ny = n.y;
-            let nw = nx;
-            let nh = ny;
-
-            if (n.type === 'LINE' || n.type === 'ARROW') {
-                nw = Math.max(nx, n.endX);
-                nh = Math.max(ny, n.endY);
-                minX = Math.min(minX, nx, n.endX);
-                minY = Math.min(minY, ny, n.endY);
-            } else {
-                nw = nx + (n.width || 0);
-                nh = ny + (n.height || 0);
-                minX = Math.min(minX, nx);
-                minY = Math.min(minY, ny);
-            }
-            maxX = Math.max(maxX, nw);
-            maxY = Math.max(maxY, nh);
+        blockNodes.forEach(n => {
+            const bounds = getNodeBounds(n);
+            minX = Math.min(minX, bounds.minX);
+            minY = Math.min(minY, bounds.minY);
+            maxX = Math.max(maxX, bounds.maxX);
+            maxY = Math.max(maxY, bounds.maxY);
         });
+
+        const applyScaleFromMin = (scale: number) => {
+            blockNodes = blockNodes.map((n) => {
+                if (n.type === 'LINE' || n.type === 'ARROW') {
+                    return {
+                        ...n,
+                        x: minX + (n.x - minX) * scale,
+                        y: minY + (n.y - minY) * scale,
+                        endX: minX + (n.endX - minX) * scale,
+                        endY: minY + (n.endY - minY) * scale,
+                    };
+                }
+
+                const baseNode = {
+                    ...n,
+                    x: minX + (n.x - minX) * scale,
+                    y: minY + (n.y - minY) * scale,
+                } as CanvasNode;
+
+                if ('width' in n && typeof n.width === 'number') {
+                    (baseNode as any).width = n.width * scale;
+                }
+                if ('height' in n && typeof n.height === 'number') {
+                    (baseNode as any).height = n.height * scale;
+                }
+                if (n.type === 'TEXT') {
+                    (baseNode as any).fontSize = Math.max(12, n.fontSize * scale);
+                }
+
+                return baseNode;
+            });
+
+            minX = Infinity; minY = Infinity; maxX = -Infinity; maxY = -Infinity;
+            blockNodes.forEach(n => {
+                const bounds = getNodeBounds(n);
+                minX = Math.min(minX, bounds.minX);
+                minY = Math.min(minY, bounds.minY);
+                maxX = Math.max(maxX, bounds.maxX);
+                maxY = Math.max(maxY, bounds.maxY);
+            });
+        };
+
+        if (targetFrame) {
+            const margin = 40;
+            const availableWidth = Math.max(1, targetFrame.width - margin * 2);
+            const groupWidth = Math.max(0, maxX - minX);
+
+            // Scale down large blocks (e.g. detail page presets) to fit selected frame width, useful for mobile frames.
+            if (groupWidth > availableWidth) {
+                applyScaleFromMin(availableWidth / groupWidth);
+            }
+
+            const groupHeight = Math.max(0, maxY - minY);
+            const maxAllowedX = targetFrame.x + targetFrame.width - margin - groupWidth;
+            const maxAllowedY = targetFrame.y + targetFrame.height - margin - groupHeight;
+            const targetMinX = Math.max(targetFrame.x + margin, Math.min(minX, maxAllowedX));
+            const targetMinY = Math.max(targetFrame.y + margin, Math.min(minY, maxAllowedY));
+            const dx = targetMinX - minX;
+            const dy = targetMinY - minY;
+
+            if (dx !== 0 || dy !== 0) {
+                blockNodes = blockNodes.map((n) => {
+                    if (n.type === 'LINE' || n.type === 'ARROW') {
+                        return { ...n, x: n.x + dx, y: n.y + dy, endX: n.endX + dx, endY: n.endY + dy };
+                    }
+                    return { ...n, x: n.x + dx, y: n.y + dy };
+                });
+                minX += dx;
+                minY += dy;
+                maxX += dx;
+                maxY += dy;
+            }
+        }
 
         const groupId = crypto.randomUUID();
         const groupNode: GroupNode = {
@@ -133,33 +219,33 @@ export default function Sidebar() {
             height: Math.max(0, maxY - minY),
         };
 
-        const nodesWithGroupId = nodes.map(n => ({ ...n, groupId }));
+        const nodesWithGroupId = blockNodes.map(n => ({ ...n, groupId }));
         addNodes([groupNode, ...nodesWithGroupId]);
         setToolMode('select');
     };
 
     const addHeroBlock = () => {
         createBlockGroup((x, y) => [
-            { id: crypto.randomUUID(), type: 'BOX', x, y, width: 800, height: 400, color: '#f8fafc' },
-            { id: crypto.randomUUID(), type: 'TEXT', x: x + 60, y: y + 80, text: "세상을 바꾸는 혁신적인 아이디어", fontSize: 48 },
-            { id: crypto.randomUUID(), type: 'TEXT', x: x + 60, y: y + 160, text: "지금 바로 시작하고 여러분의 꿈을 현실로 만드세요.", fontSize: 24 },
-            { id: crypto.randomUUID(), type: 'BUTTON', x: x + 60, y: y + 240, width: 160, height: 50, text: "무료로 시작하기", variant: 'primary' }
+            { id: crypto.randomUUID(), type: 'BOX', x, y, width: 320, height: 190, color: '#f8fafc' },
+            { id: crypto.randomUUID(), type: 'TEXT', x: x + 20, y: y + 34, text: "세상을 바꾸는 혁신적인 아이디어", fontSize: 17 },
+            { id: crypto.randomUUID(), type: 'TEXT', x: x + 20, y: y + 74, text: "지금 바로 시작하고 여러분의 꿈을\n현실로 만드세요.", fontSize: 13 },
+            { id: crypto.randomUUID(), type: 'BUTTON', x: x + 20, y: y + 126, width: 130, height: 36, text: "무료로 시작하기", variant: 'primary' }
         ], '히어로 영역');
     };
 
     const addParagraphBlock = () => {
         createBlockGroup((x, y) => [
-            { id: crypto.randomUUID(), type: 'TEXT', x, y, text: "핵심 가치 및 비전", fontSize: 32 },
-            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 60, text: "우리는 사용자 경험을 최우선으로 생각합니다. 모든 기능은 깊은 고민 끝에 탄생했습니다.", fontSize: 16 },
-            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 90, text: "지속 가능한 성장을 위해 우리는 매일 혁신합니다. 기술은 도구일 뿐, 본질은 사람입니다.", fontSize: 16 },
-            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 120, text: "함께 미래를 그려나갈 파트너를 찾고 있습니다. 지금 바로 문의해 주세요.", fontSize: 16 }
+            { id: crypto.randomUUID(), type: 'TEXT', x, y, text: "핵심 가치 및 비전", fontSize: 36 },
+            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 50, text: "우리는 사용자 경험을 최우선으로 생각합니다.\n모든 기능은 깊은 고민 끝에 탄생했습니다.", fontSize: 14 },
+            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 108, text: "지속 가능한 성장을 위해 우리는 매일 혁신합니다.\n기술은 도구일 뿐, 본질은 사람입니다.", fontSize: 14 },
+            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 166, text: "함께 미래를 그려나갈 파트너를 찾고 있습니다.\n지금 바로 문의해 주세요.", fontSize: 14 }
         ], '문단 영역');
     };
 
     const addImageBlock = () => {
         createBlockGroup((x, y) => [
-            { id: crypto.randomUUID(), type: 'BOX', x, y, width: 500, height: 300, color: '#e2e8f0' },
-            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 320, text: "이미지에 대한 상세 설명이 여기에 들어갑니다.", fontSize: 14 }
+            { id: crypto.randomUUID(), type: 'BOX', x, y, width: 320, height: 190, color: '#e2e8f0' },
+            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 208, text: "이미지에 대한 상세 설명이 여기에 들어갑니다.", fontSize: 13 }
         ], '이미지 영역');
     };
 
@@ -167,8 +253,8 @@ export default function Sidebar() {
         createBlockGroup((x, y) => {
             const blockNodes: CanvasNode[] = [];
             for (let i = 0; i < 3; i++) {
-                const bx = x + (i * 240);
-                blockNodes.push({ id: crypto.randomUUID(), type: 'CARD', x: bx, y, width: 220, height: 160, title: `특징 ${i + 1}`, content: "이 제품이 가진 핵심적인 장점을 간략하게 설명합니다." });
+                const by = y + (i * 170);
+                blockNodes.push({ id: crypto.randomUUID(), type: 'CARD', x, y: by, width: 320, height: 150, title: `특징 ${i + 1}`, content: "이 제품이 가진 핵심적인 장점을\n간략하게 설명합니다." });
             }
             return blockNodes;
         }, '특징 모음');
@@ -176,11 +262,11 @@ export default function Sidebar() {
 
     const addPricingBlock = () => {
         createBlockGroup((x, y) => [
-            { id: crypto.randomUUID(), type: 'BOX', x, y, width: 300, height: 350, color: '#ffffff' },
-            { id: crypto.randomUUID(), type: 'TEXT', x: x + 40, y: y + 40, text: "Premium Plan", fontSize: 24 },
-            { id: crypto.randomUUID(), type: 'TEXT', x: x + 40, y: y + 80, text: "₩ 29,900 / 월", fontSize: 36 },
-            { id: crypto.randomUUID(), type: 'TEXT', x: x + 40, y: y + 140, text: "모든 고급 기능을 제한 없이 사용하세요.", fontSize: 14 },
-            { id: crypto.randomUUID(), type: 'BUTTON', x: x + 40, y: y + 260, width: 220, height: 50, text: "지금 구매하기", variant: 'primary' }
+            { id: crypto.randomUUID(), type: 'BOX', x, y, width: 320, height: 280, color: '#ffffff' },
+            { id: crypto.randomUUID(), type: 'TEXT', x: x + 24, y: y + 28, text: "Premium Plan", fontSize: 20 },
+            { id: crypto.randomUUID(), type: 'TEXT', x: x + 24, y: y + 66, text: "₩ 29,900 / 월", fontSize: 30 },
+            { id: crypto.randomUUID(), type: 'TEXT', x: x + 24, y: y + 122, text: "모든 고급 기능을\n제한 없이 사용하세요.", fontSize: 14 },
+            { id: crypto.randomUUID(), type: 'BUTTON', x: x + 24, y: y + 206, width: 272, height: 42, text: "지금 구매하기", variant: 'primary' }
         ], '가격 플랜');
     };
 
@@ -199,15 +285,15 @@ export default function Sidebar() {
     const addSpecTableBlock = () => {
         createBlockGroup((x, y) => {
             const blockNodes: CanvasNode[] = [];
-            blockNodes.push({ id: crypto.randomUUID(), type: 'BOX', x, y, width: 600, height: 250, color: 'transparent' }); // Container
+            blockNodes.push({ id: crypto.randomUUID(), type: 'BOX', x, y, width: 320, height: 250, color: 'transparent' }); // Container
 
             for (let i = 0; i < 5; i++) {
                 const currentY = y + (i * 50);
-                blockNodes.push({ id: crypto.randomUUID(), type: 'LINE', x, y: currentY, endX: x + 600, endY: currentY }); // Top border of row
-                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: x + 20, y: currentY + 15, text: `항목 ${i + 1}`, fontSize: 16 });
-                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: x + 200, y: currentY + 15, text: `상세 스펙 값 ${i + 1}`, fontSize: 16 });
+                blockNodes.push({ id: crypto.randomUUID(), type: 'LINE', x, y: currentY, endX: x + 320, endY: currentY }); // Top border of row
+                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: x + 12, y: currentY + 15, text: `항목 ${i + 1}`, fontSize: 14 });
+                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: x + 150, y: currentY + 15, text: `상세값 ${i + 1}`, fontSize: 14 });
             }
-            blockNodes.push({ id: crypto.randomUUID(), type: 'LINE', x, y: y + 250, endX: x + 600, endY: y + 250 }); // Bottom border of table
+            blockNodes.push({ id: crypto.randomUUID(), type: 'LINE', x, y: y + 250, endX: x + 320, endY: y + 250 }); // Bottom border of table
             return blockNodes;
         }, '스펙 표');
     };
@@ -216,11 +302,11 @@ export default function Sidebar() {
         createBlockGroup((x, y) => {
             const blockNodes: CanvasNode[] = [];
             for (let i = 0; i < 3; i++) {
-                const bx = x + (i * 240);
-                blockNodes.push({ id: crypto.randomUUID(), type: 'BOX', x: bx, y, width: 220, height: 140, color: '#f8fafc' });
-                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: bx + 20, y: y + 20, text: "⭐⭐⭐⭐⭐", fontSize: 16 });
-                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: bx + 20, y: y + 60, text: "정말 훌륭한 제품입니다!", fontSize: 14 });
-                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: bx + 20, y: y + 100, text: "홍길동", fontSize: 12 });
+                const by = y + (i * 158);
+                blockNodes.push({ id: crypto.randomUUID(), type: 'BOX', x, y: by, width: 320, height: 140, color: '#f8fafc' });
+                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: x + 18, y: by + 18, text: "⭐⭐⭐⭐⭐", fontSize: 16 });
+                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: x + 18, y: by + 56, text: "정말 훌륭한 제품입니다!", fontSize: 14 });
+                blockNodes.push({ id: crypto.randomUUID(), type: 'TEXT', x: x + 18, y: by + 98, text: "홍길동", fontSize: 12 });
             }
             return blockNodes;
         }, '후기');
@@ -228,15 +314,15 @@ export default function Sidebar() {
 
     const addDividerTitleBlock = () => {
         createBlockGroup((x, y) => [
-            { id: crypto.randomUUID(), type: 'LINE', x, y, endX: x + 800, endY: y },
-            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 20, text: "새로운 섹션 제목", fontSize: 32 }
+            { id: crypto.randomUUID(), type: 'LINE', x, y, endX: x + 320, endY: y },
+            { id: crypto.randomUUID(), type: 'TEXT', x, y: y + 18, text: "새로운 섹션 제목", fontSize: 24 }
         ], '섹션 제목');
     };
 
     const addTwoButtonsBlock = () => {
         createBlockGroup((x, y) => [
-            { id: crypto.randomUUID(), type: 'BUTTON', x, y, width: 160, height: 50, text: "구매하기", variant: 'primary' },
-            { id: crypto.randomUUID(), type: 'BUTTON', x: x + 180, y, width: 160, height: 50, text: "문의하기", variant: 'secondary' }
+            { id: crypto.randomUUID(), type: 'BUTTON', x, y, width: 152, height: 44, text: "구매하기", variant: 'primary' },
+            { id: crypto.randomUUID(), type: 'BUTTON', x: x + 168, y, width: 152, height: 44, text: "문의하기", variant: 'secondary' }
         ], '버튼 그룹');
     };
 

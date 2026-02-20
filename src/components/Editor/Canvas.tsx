@@ -2,10 +2,9 @@
 
 import { snapToGrid } from "@/utils/snap";
 import { useCanvasParams } from "@/hooks/useCanvasParams";
-import GridBackground from "./GridBackground";
 import { useEffect, useRef, useState } from "react";
 import { useEditor } from "@/context/EditorContext";
-import { worldToScreen } from "@/utils/coords";
+import { screenToWorld, worldToScreen } from "@/utils/coords";
 import DimOverlay from "./DimOverlay";
 import { CanvasNode } from "@/types";
 
@@ -22,6 +21,7 @@ export default function Canvas() {
     } = useCanvasParams();
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
     // Node Dragging State
     const [isDraggingNode, setIsDraggingNode] = useState(false);
@@ -44,6 +44,9 @@ export default function Canvas() {
         screenX: number;
         screenY: number;
     } | null>(null);
+    const [lastPointerScreenPos, setLastPointerScreenPos] = useState<{ x: number; y: number } | null>(null);
+    const [showGrid, setShowGrid] = useState(true);
+    const [showMajorGrid, setShowMajorGrid] = useState(true);
     const SNAP_GRID_SIZE = 10;
     const SNAP_THRESHOLD = 4;
 
@@ -74,6 +77,83 @@ export default function Canvas() {
     const EDITING_PADDING_X = 8;
     const EDITING_PADDING_Y = 6;
     const EDITING_MAX_WIDTH = 520;
+    const SPAWN_GRID_SIZE = 10;
+
+    const worldLeft = (0 - pan.x) / zoom;
+    const worldTop = (0 - pan.y) / zoom;
+    const worldRight = (viewportSize.width - pan.x) / zoom;
+    const worldBottom = (viewportSize.height - pan.y) / zoom;
+
+    const minorSpacing = 10;
+    const majorSpacing = 100;
+
+    const maxGridLines = 400;
+    const getLineCount = (minor: number, major: number) => {
+        const minorCountX = Math.ceil((worldRight - worldLeft) / minor) + 1;
+        const minorCountY = Math.ceil((worldBottom - worldTop) / minor) + 1;
+        const majorCountX = Math.ceil((worldRight - worldLeft) / major) + 1;
+        const majorCountY = Math.ceil((worldBottom - worldTop) / major) + 1;
+        return minorCountX + minorCountY + majorCountX + majorCountY;
+    };
+    // Keep spacing fixed (minor 10, major 100) for CAD-like consistency.
+
+    const startMinorX = Math.floor(worldLeft / minorSpacing) * minorSpacing;
+    const endMinorX = Math.ceil(worldRight / minorSpacing) * minorSpacing;
+    const startMinorY = Math.floor(worldTop / minorSpacing) * minorSpacing;
+    const endMinorY = Math.ceil(worldBottom / minorSpacing) * minorSpacing;
+
+    const startMajorX = Math.floor(worldLeft / majorSpacing) * majorSpacing;
+    const endMajorX = Math.ceil(worldRight / majorSpacing) * majorSpacing;
+    const startMajorY = Math.floor(worldTop / majorSpacing) * majorSpacing;
+    const endMajorY = Math.ceil(worldBottom / majorSpacing) * majorSpacing;
+
+    const minorVerticalLines: number[] = [];
+    for (let x = startMinorX; x <= endMinorX; x += minorSpacing) {
+        minorVerticalLines.push(x);
+    }
+    const minorHorizontalLines: number[] = [];
+    for (let y = startMinorY; y <= endMinorY; y += minorSpacing) {
+        minorHorizontalLines.push(y);
+    }
+    const majorVerticalLines: number[] = [];
+    for (let x = startMajorX; x <= endMajorX; x += majorSpacing) {
+        majorVerticalLines.push(x);
+    }
+    const majorHorizontalLines: number[] = [];
+    for (let y = startMajorY; y <= endMajorY; y += majorSpacing) {
+        majorHorizontalLines.push(y);
+    }
+
+    const getSpawnWorldPos = (container: HTMLDivElement, screenPos?: { x: number; y: number }) => {
+        const baseScreenPos = screenPos || lastPointerScreenPos || {
+            x: container.clientWidth / 2,
+            y: container.clientHeight / 2,
+        };
+
+        let world = screenToWorld(baseScreenPos, pan, zoom);
+
+        const selectedFrame = nodes.find(
+            (n): n is CanvasNode & { type: 'FRAME'; width: number; height: number } =>
+                n.type === 'FRAME' && selectedNodeIds.includes(n.id)
+        );
+
+        if (selectedFrame) {
+            const margin = 40;
+            const minX = selectedFrame.x + margin;
+            const minY = selectedFrame.y + margin;
+            const maxX = selectedFrame.x + selectedFrame.width - margin;
+            const maxY = selectedFrame.y + selectedFrame.height - margin;
+            world = {
+                x: Math.max(minX, Math.min(world.x, Math.max(minX, maxX))),
+                y: Math.max(minY, Math.min(world.y, Math.max(minY, maxY))),
+            };
+        }
+
+        return {
+            x: snapToGrid(world.x, SPAWN_GRID_SIZE),
+            y: snapToGrid(world.y, SPAWN_GRID_SIZE),
+        };
+    };
 
     useEffect(() => {
         if (!editingNodeId) return;
@@ -84,6 +164,48 @@ export default function Canvas() {
         const end = textarea.value.length;
         textarea.setSelectionRange(end, end);
     }, [editingNodeId]);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const updateSize = () => {
+            setViewportSize({
+                width: container.clientWidth,
+                height: container.clientHeight,
+            });
+        };
+
+        updateSize();
+        const observer = new ResizeObserver(updateSize);
+        observer.observe(container);
+
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        const readGridSettings = () => {
+            try {
+                const storedShowGrid = localStorage.getItem("asmemo_show_grid");
+                const storedShowMajor = localStorage.getItem("asmemo_show_major_grid");
+                const nextShowGrid = storedShowGrid === null ? true : storedShowGrid === "true";
+                const nextShowMajor = storedShowMajor === null ? true : storedShowMajor === "true";
+                setShowGrid(nextShowGrid);
+                setShowMajorGrid(nextShowGrid ? nextShowMajor : false);
+            } catch {
+                setShowGrid(true);
+                setShowMajorGrid(true);
+            }
+        };
+
+        readGridSettings();
+        window.addEventListener("storage", readGridSettings);
+        window.addEventListener("asmemo:grid-settings-changed", readGridSettings as EventListener);
+        return () => {
+            window.removeEventListener("storage", readGridSettings);
+            window.removeEventListener("asmemo:grid-settings-changed", readGridSettings as EventListener);
+        };
+    }, []);
 
     useEffect(() => {
         if (!editingNodeId) return;
@@ -638,6 +760,18 @@ export default function Canvas() {
         <div
             ref={containerRef}
             className={`absolute inset-0 overflow-hidden ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
+            onPointerMove={(e) => {
+                const container = containerRef.current;
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                setLastPointerScreenPos({
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                });
+            }}
+            onPointerLeave={() => {
+                setLastPointerScreenPos(null);
+            }}
             onDoubleClick={(e) => {
                 if (!activeGroupId) return;
                 if (e.target !== e.currentTarget) return;
@@ -654,14 +788,11 @@ export default function Canvas() {
                     const rect = container.getBoundingClientRect();
                     const x = e.clientX - rect.left;
                     const y = e.clientY - rect.top;
+                    setLastPointerScreenPos({ x, y });
 
-                    let worldX = (x - pan.x) / zoom;
-                    let worldY = (y - pan.y) / zoom;
-
-                    if (!e.shiftKey) {
-                        worldX = snapToGrid(worldX, gridSize);
-                        worldY = snapToGrid(worldY, gridSize);
-                    }
+                    const spawn = getSpawnWorldPos(container, { x, y });
+                    let worldX = spawn.x;
+                    let worldY = spawn.y;
 
                     const createNode = (type: CanvasNode['type'], defaults: any) => {
                         const newNode: any = {
@@ -738,6 +869,13 @@ export default function Canvas() {
 
                         case 'select':
                             // Start Marquee Selection if clicking on empty space (which we are, since nodes stop propagation)
+                            if (e.shiftKey) {
+                                worldX = (x - pan.x) / zoom;
+                                worldY = (y - pan.y) / zoom;
+                            } else {
+                                worldX = snapToGrid((x - pan.x) / zoom, gridSize);
+                                worldY = snapToGrid((y - pan.y) / zoom, gridSize);
+                            }
                             setIsSelecting(true);
                             setSelectionStartPos({ x: worldX, y: worldY });
                             setSelectionEndPos({ x: worldX, y: worldY });
@@ -748,13 +886,73 @@ export default function Canvas() {
         >
             <DimOverlay />
 
+            {showGrid && (
+                <svg className="absolute inset-0 pointer-events-none z-0" width="100%" height="100%">
+                    {minorVerticalLines.map((x) => {
+                        const sx = x * zoom + pan.x;
+                        return (
+                            <line
+                                key={`mvx-${x}`}
+                                x1={sx}
+                                y1={0}
+                                x2={sx}
+                                y2={viewportSize.height}
+                                stroke="rgba(229,231,235,0.5)"
+                                strokeWidth={1}
+                            />
+                        );
+                    })}
+                    {minorHorizontalLines.map((y) => {
+                        const sy = y * zoom + pan.y;
+                        return (
+                            <line
+                                key={`mhy-${y}`}
+                                x1={0}
+                                y1={sy}
+                                x2={viewportSize.width}
+                                y2={sy}
+                                stroke="rgba(229,231,235,0.5)"
+                                strokeWidth={1}
+                            />
+                        );
+                    })}
+                    {showMajorGrid && majorVerticalLines.map((x) => {
+                        const sx = x * zoom + pan.x;
+                        return (
+                            <line
+                                key={`Mvx-${x}`}
+                                x1={sx}
+                                y1={0}
+                                x2={sx}
+                                y2={viewportSize.height}
+                                stroke={zoom < 0.75 ? "rgba(197,204,216,0.58)" : "rgba(197,204,216,0.18)"}
+                                strokeWidth={1.15}
+                            />
+                        );
+                    })}
+                    {showMajorGrid && majorHorizontalLines.map((y) => {
+                        const sy = y * zoom + pan.y;
+                        return (
+                            <line
+                                key={`Mhy-${y}`}
+                                x1={0}
+                                y1={sy}
+                                x2={viewportSize.width}
+                                y2={sy}
+                                stroke={zoom < 0.75 ? "rgba(197,204,216,0.58)" : "rgba(197,204,216,0.18)"}
+                                strokeWidth={1.15}
+                            />
+                        );
+                    })}
+                </svg>
+            )}
+
             <div
                 className="absolute inset-0 origin-top-left pointer-events-none"
                 style={{
                     transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                 }}
             >
-                <GridBackground />
 
                 {/* Paint Layer */}
                 {paintLayerVisible && Array.from(paintLayer).map((key) => {
@@ -809,8 +1007,13 @@ export default function Canvas() {
                     const isInteractable = !activeGroupId || node.groupId === activeGroupId;
                     const pointerEvents = isInteractable ? "auto" : "none";
                     const opacity = isInteractable ? 1 : 0.4;
+                    const hiddenOutlineGroupNames = new Set(["문단 영역", "이미지 영역", "특징 모음", "FAQ"]);
+                    const shouldHideGroupOutline = node.type === 'GROUP' && hiddenOutlineGroupNames.has(node.name || "");
 
                     if (node.type === 'GROUP') {
+                        if (shouldHideGroupOutline && !isSelected) {
+                            return null;
+                        }
                         return (
                             <div
                                 key={node.id}
