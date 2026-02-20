@@ -3,7 +3,7 @@
 import { useEditor } from "@/context/EditorContext";
 
 export default function Inspector() {
-    const { nodes, selectedNodeIds } = useEditor();
+    const { nodes, selectedNodeIds, updateNode } = useEditor();
 
     // For now, if multiple nodes are selected, we can show a summary or just the first one?
     // Or maybe just show "Multiple Selection"
@@ -108,6 +108,18 @@ export default function Inspector() {
                             value={selectedNode.name}
                             className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none"
                             readOnly
+                        />
+                    </div>
+                )}
+
+                {selectedNode.type === 'GROUP' && (
+                    <div>
+                        <label className="text-xs font-medium text-gray-500 mb-2 block">Group Name</label>
+                        <input
+                            type="text"
+                            value={selectedNode.name}
+                            onChange={(e) => updateNode(selectedNode.id, { name: e.target.value })}
+                            className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none"
                         />
                     </div>
                 )}

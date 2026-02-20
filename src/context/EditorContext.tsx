@@ -12,7 +12,9 @@ interface EditorState {
     setZoom: (zoom: number | ((prev: number) => number)) => void;
     setPan: (pan: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
     addNode: (node: CanvasNode) => void;
+    addNodes: (nodes: CanvasNode[]) => void;
     updateNode: (id: string, updates: Partial<CanvasNode>, skipHistory?: boolean) => void;
+    updateMultipleNodes: (updates: { id: string, changes: Partial<CanvasNode> }[], skipHistory?: boolean) => void;
     selectNode: (id: string | null) => void;
     toggleSelection: (id: string) => void;
     setSelection: (ids: string[]) => void;
@@ -126,11 +128,28 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setSelectedNodeIds([node.id]);
     };
 
+    const addNodes = (newNodes: CanvasNode[]) => {
+        pushSnapshot();
+        setNodes((prev) => [...prev, ...newNodes]);
+        setSelectedNodeIds(newNodes.map(n => n.id));
+    };
+
     const updateNode = (id: string, updates: Partial<CanvasNode>, skipHistory = false) => {
         if (!skipHistory) pushSnapshot();
         setNodes((prev) =>
             prev.map((n) => (n.id === id ? { ...n, ...updates } as CanvasNode : n))
         );
+    };
+
+    const updateMultipleNodes = (updates: { id: string, changes: Partial<CanvasNode> }[], skipHistory = false) => {
+        if (!skipHistory) pushSnapshot();
+        setNodes((prev) => {
+            const updatesMap = new Map(updates.map(u => [u.id, u.changes]));
+            return prev.map((n) => {
+                const changes = updatesMap.get(n.id);
+                return changes ? { ...n, ...changes } as CanvasNode : n;
+            });
+        });
     };
 
     const deleteNode = (id: string) => {
@@ -194,7 +213,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 setZoom,
                 setPan,
                 addNode,
+                addNodes,
                 updateNode,
+                updateMultipleNodes,
                 selectedNodeIds,
                 selectNode,
                 toggleSelection,

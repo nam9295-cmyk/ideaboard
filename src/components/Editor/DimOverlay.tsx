@@ -5,7 +5,8 @@ import { useCanvasParams } from "@/hooks/useCanvasParams";
 import { useMemo } from "react";
 
 export default function DimOverlay() {
-    const { frames, dimOutsideFrames } = useEditor();
+    const { nodes, dimOutsideFrames } = useEditor();
+    const frames = nodes.filter(n => n.type === 'FRAME');
     const { zoom, pan } = useCanvasParams();
 
     // If dimming is disabled or no frames exist, don't render anything

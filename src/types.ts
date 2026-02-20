@@ -1,4 +1,4 @@
-export type NodeType = 'FRAME' | 'TEXT' | 'BOX' | 'LINE' | 'ARROW' | 'BUTTON' | 'INPUT' | 'CARD';
+export type NodeType = 'FRAME' | 'TEXT' | 'BOX' | 'LINE' | 'ARROW' | 'BUTTON' | 'INPUT' | 'CARD' | 'GROUP';
 export type ToolMode = 'select' | 'text' | 'box' | 'line' | 'arrow' | 'button' | 'input' | 'card' | 'pencil' | 'eraser';
 
 export interface BaseNode {
@@ -8,6 +8,7 @@ export interface BaseNode {
     type: NodeType;
     width?: number;
     height?: number;
+    groupId?: string;
 }
 
 export interface FrameNode extends BaseNode {
@@ -65,7 +66,14 @@ export interface CardNode extends BaseNode {
     content?: string;
 }
 
-export type CanvasNode = FrameNode | TextNode | BoxNode | LineNode | ArrowNode | ButtonNode | InputNode | CardNode;
+export interface GroupNode extends BaseNode {
+    type: 'GROUP';
+    name: string;
+    width: number;
+    height: number;
+}
+
+export type CanvasNode = FrameNode | TextNode | BoxNode | LineNode | ArrowNode | ButtonNode | InputNode | CardNode | GroupNode;
 
 // Deprecated alias to help with transition if needed, but better to switch
 // export type Frame = FrameNode; 

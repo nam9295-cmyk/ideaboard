@@ -7,10 +7,10 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor } from "@/context/EditorContext";
 import { worldToScreen } from "@/utils/coords";
 import DimOverlay from "./DimOverlay";
-import { CanvasNode, FrameNode, TextNode, BoxNode, LineNode, ArrowNode, ButtonNode, InputNode, CardNode } from "@/types";
+import { CanvasNode, FrameNode, TextNode, BoxNode, LineNode, ArrowNode, ButtonNode, InputNode, CardNode, GroupNode } from "@/types";
 
 export default function Canvas() {
-    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, deleteNode, deleteNodes, addNode, toolMode, setToolMode, gridSize, paintLayer, addPaint, removePaint, undo, redo, pushSnapshot } = useEditor();
+    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, addNode, toolMode, setToolMode, gridSize, paintLayer, addPaint, removePaint, undo, redo, pushSnapshot } = useEditor();
     const {
         zoom,
         pan,
@@ -31,6 +31,7 @@ export default function Canvas() {
         startY: number;
         initialX: number;
         initialY: number;
+        nodesInitialPos: { id: string, x: number, y: number, endX?: number, endY?: number }[];
         historyRecorded?: boolean;
     } | null>(null);
 
@@ -62,6 +63,57 @@ export default function Canvas() {
             setEditingText(node.text);
             setIsDraggingNode(false); // Cancel drag if any
         }
+    };
+
+    const startNodeDrag = (e: React.PointerEvent, node: CanvasNode) => {
+        if (isSpacePressed || e.button === 1) return;
+        if (node.type === 'TEXT' && editingNodeId === node.id) return;
+        e.stopPropagation();
+
+        console.log("startNodeDrag on node:", node.id, node.type);
+
+        let targetNode = node;
+        // If clicking a child node that belongs to a group, drag the whole group
+        if (node.groupId) {
+            const groupParent = nodes.find(n => n.id === node.groupId);
+            if (groupParent) {
+                targetNode = groupParent;
+            }
+        }
+
+        const isSelected = selectedNodeIds.includes(targetNode.id);
+        if (e.shiftKey) {
+            toggleSelection(targetNode.id);
+        } else {
+            if (!isSelected) {
+                selectNode(targetNode.id);
+            }
+        }
+        setIsDraggingNode(true);
+
+        let childrenPos: any[] = [];
+        if (targetNode.type === 'GROUP') {
+            const children = nodes.filter(n => n.groupId === targetNode.id);
+            childrenPos = children.map(c => ({
+                id: c.id,
+                x: c.x,
+                y: c.y,
+                endX: (c as any).endX,
+                endY: (c as any).endY
+            }));
+        }
+
+        dragRef.current = {
+            nodeId: targetNode.id,
+            startX: e.clientX,
+            startY: e.clientY,
+            initialX: targetNode.x,
+            initialY: targetNode.y,
+            nodesInitialPos: [
+                { id: targetNode.id, x: targetNode.x, y: targetNode.y, endX: (targetNode as any).endX, endY: (targetNode as any).endY },
+                ...childrenPos
+            ]
+        };
     };
 
     // Save Text
@@ -209,32 +261,42 @@ export default function Canvas() {
             }
 
             // Handle Dragging
-            if (dragRef.current) {
-                const { startX, startY, initialX, initialY, nodeId } = dragRef.current;
+            if (dragRef.current && isDraggingNode) {
+                const { startX, startY, nodesInitialPos } = dragRef.current;
 
-                const deltaScreenX = e.clientX - startX;
-                const deltaScreenY = e.clientY - startY;
+                const deltaWorldX = (e.clientX - startX) / zoom;
+                const deltaWorldY = (e.clientY - startY) / zoom;
 
-                const deltaWorldX = deltaScreenX / zoom;
-                const deltaWorldY = deltaScreenY / zoom;
-
-                let newX = initialX + deltaWorldX;
-                let newY = initialY + deltaWorldY;
-
-                if (!e.shiftKey) {
-                    newX = snapToGrid(newX, gridSize);
-                    newY = snapToGrid(newY, gridSize);
-                }
+                console.log("Dragging node:", dragRef.current.nodeId, "deltaWorld:", deltaWorldX, deltaWorldY);
 
                 if (!dragRef.current.historyRecorded) {
                     pushSnapshot();
                     dragRef.current.historyRecorded = true;
                 }
 
-                updateNode(nodeId, {
-                    x: newX,
-                    y: newY,
-                }, true);
+                // Node 0 is the dragged node
+                const mainNodeInitial = nodesInitialPos[0];
+                let effectiveDeltaX = deltaWorldX;
+                let effectiveDeltaY = deltaWorldY;
+
+                if (!e.shiftKey) {
+                    const snappedX = snapToGrid(mainNodeInitial.x + deltaWorldX, gridSize);
+                    const snappedY = snapToGrid(mainNodeInitial.y + deltaWorldY, gridSize);
+                    effectiveDeltaX = snappedX - mainNodeInitial.x;
+                    effectiveDeltaY = snappedY - mainNodeInitial.y;
+                }
+
+                const updates = nodesInitialPos.map(ip => ({
+                    id: ip.id,
+                    changes: {
+                        x: ip.x + effectiveDeltaX,
+                        y: ip.y + effectiveDeltaY,
+                        ...(ip.endX !== undefined ? { endX: ip.endX + effectiveDeltaX } : {}),
+                        ...(ip.endY !== undefined ? { endY: ip.endY + effectiveDeltaY } : {})
+                    }
+                }));
+
+                updateMultipleNodes(updates, true);
             }
         };
 
@@ -376,6 +438,7 @@ export default function Canvas() {
         };
 
         if (isDraggingNode || drawingNodeId || boxStartPos || isPainting || isSelecting) {
+            console.log("Attaching event listeners. isDraggingNode:", isDraggingNode);
             window.addEventListener("pointermove", handlePointerMove);
             window.addEventListener("pointerup", handlePointerUp);
         }
@@ -616,30 +679,7 @@ export default function Canvas() {
                                     width: screen.width,
                                     height: screen.height,
                                 }}
-                                onMouseDown={(e) => {
-                                    if (isSpacePressed || e.button === 1) return;
-                                    e.stopPropagation();
-                                    e.stopPropagation();
-                                    if (e.shiftKey) {
-                                        toggleSelection(node.id);
-                                    } else {
-                                        // If already selected and we are dragging, don't deselect others yet
-                                        // But if we just click, we should deselect others.
-                                        // Simple logic for now: if shift not held, replace selection unless it's a drag start on an already selected node?
-                                        // For standard behavior: Click on unselected -> Select only it. Click on selected -> Keep selection (maybe allow drag).
-                                        if (!isSelected) {
-                                            selectNode(node.id);
-                                        }
-                                    }
-                                    setIsDraggingNode(true);
-                                    dragRef.current = {
-                                        nodeId: node.id,
-                                        startX: e.clientX,
-                                        startY: e.clientY,
-                                        initialX: node.x,
-                                        initialY: node.y,
-                                    };
-                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                             >
                                 <div
                                     className={`absolute -top-7 left-0 px-1 py-0.5 text-xs font-medium truncate max-w-full cursor-pointer select-none rounded-t-sm
@@ -664,25 +704,7 @@ export default function Canvas() {
                                     lineHeight: "1.2",
                                     zIndex: isEditing ? 100 : (isSelected ? 10 : 1),
                                 }}
-                                onMouseDown={(e) => {
-                                    if (isSpacePressed || e.button === 1 || isEditing) return;
-                                    e.stopPropagation();
-                                    if (e.shiftKey) {
-                                        toggleSelection(node.id);
-                                    } else {
-                                        if (!isSelected) {
-                                            selectNode(node.id);
-                                        }
-                                    }
-                                    setIsDraggingNode(true);
-                                    dragRef.current = {
-                                        nodeId: node.id,
-                                        startX: e.clientX,
-                                        startY: e.clientY,
-                                        initialX: node.x,
-                                        initialY: node.y,
-                                    };
-                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
                             >
                                 {isEditing ? (
@@ -745,25 +767,7 @@ export default function Canvas() {
                                     width: screen.width,
                                     height: screen.height,
                                 }}
-                                onMouseDown={(e) => {
-                                    if (isSpacePressed || e.button === 1) return;
-                                    e.stopPropagation();
-                                    if (e.shiftKey) {
-                                        toggleSelection(node.id);
-                                    } else {
-                                        if (!isSelected) {
-                                            selectNode(node.id);
-                                        }
-                                    }
-                                    setIsDraggingNode(true);
-                                    dragRef.current = {
-                                        nodeId: node.id,
-                                        startX: e.clientX,
-                                        startY: e.clientY,
-                                        initialX: node.x,
-                                        initialY: node.y,
-                                    };
-                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                             />
                         );
                     } else if (node.type === 'LINE' || node.type === 'ARROW') {
@@ -788,25 +792,7 @@ export default function Canvas() {
                                     width: screen.width,
                                     height: screen.height,
                                 }}
-                                onMouseDown={(e) => {
-                                    if (isSpacePressed || e.button === 1) return;
-                                    e.stopPropagation();
-                                    if (e.shiftKey) {
-                                        toggleSelection(node.id);
-                                    } else {
-                                        if (!isSelected) {
-                                            selectNode(node.id);
-                                        }
-                                    }
-                                    setIsDraggingNode(true);
-                                    dragRef.current = {
-                                        nodeId: node.id,
-                                        startX: e.clientX,
-                                        startY: e.clientY,
-                                        initialX: node.x,
-                                        initialY: node.y,
-                                    };
-                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                             >
                                 <svg width="100%" height="100%" overflow="visible">
                                     <defs>
@@ -848,25 +834,7 @@ export default function Canvas() {
                                     height: screen.height,
                                     fontSize: 14 * zoom,
                                 }}
-                                onMouseDown={(e) => {
-                                    if (isSpacePressed || e.button === 1) return;
-                                    e.stopPropagation();
-                                    if (e.shiftKey) {
-                                        toggleSelection(node.id);
-                                    } else {
-                                        if (!isSelected) {
-                                            selectNode(node.id);
-                                        }
-                                    }
-                                    setIsDraggingNode(true);
-                                    dragRef.current = {
-                                        nodeId: node.id,
-                                        startX: e.clientX,
-                                        startY: e.clientY,
-                                        initialX: node.x,
-                                        initialY: node.y,
-                                    };
-                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                             >
                                 {node.text}
                             </button>
@@ -883,25 +851,7 @@ export default function Canvas() {
                                     height: screen.height,
                                     fontSize: 14 * zoom,
                                 }}
-                                onMouseDown={(e) => {
-                                    if (isSpacePressed || e.button === 1) return;
-                                    e.stopPropagation();
-                                    if (e.shiftKey) {
-                                        toggleSelection(node.id);
-                                    } else {
-                                        if (!isSelected) {
-                                            selectNode(node.id);
-                                        }
-                                    }
-                                    setIsDraggingNode(true);
-                                    dragRef.current = {
-                                        nodeId: node.id,
-                                        startX: e.clientX,
-                                        startY: e.clientY,
-                                        initialX: node.x,
-                                        initialY: node.y,
-                                    };
-                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                             >
                                 {node.placeholder}
                             </div>
@@ -917,25 +867,7 @@ export default function Canvas() {
                                     width: screen.width,
                                     height: screen.height,
                                 }}
-                                onMouseDown={(e) => {
-                                    if (isSpacePressed || e.button === 1) return;
-                                    e.stopPropagation();
-                                    if (e.shiftKey) {
-                                        toggleSelection(node.id);
-                                    } else {
-                                        if (!isSelected) {
-                                            selectNode(node.id);
-                                        }
-                                    }
-                                    setIsDraggingNode(true);
-                                    dragRef.current = {
-                                        nodeId: node.id,
-                                        startX: e.clientX,
-                                        startY: e.clientY,
-                                        initialX: node.x,
-                                        initialY: node.y,
-                                    };
-                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                             >
                                 <div className="font-bold border-b pb-2 mb-2" style={{ fontSize: 16 * zoom }}>{node.title}</div>
                                 <div className="text-gray-600" style={{ fontSize: 14 * zoom }}>{node.content}</div>
