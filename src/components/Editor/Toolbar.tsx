@@ -7,9 +7,10 @@ import { screenToWorld } from "@/utils/coords";
 import { snapToGrid } from "@/utils/snap";
 
 export default function Toolbar() {
-    const { addNode, pan, zoom, dimOutsideFrames, setDimOutsideFrames, gridSize, activeGroupId, setActiveGroupId, nodes, setSelection, deleteNodes, paintLayer, removePaint } = useEditor();
+    const { addNode, pan, zoom, setPan, dimOutsideFrames, setDimOutsideFrames, gridSize, activeGroupId, setActiveGroupId, nodes, setSelection, deleteNodes, paintLayer, removePaint } = useEditor();
     const [showGrid, setShowGrid] = useState(true);
     const [showMajorGrid, setShowMajorGrid] = useState(true);
+    const [hasRecentWork, setHasRecentWork] = useState(false);
 
     useEffect(() => {
         try {
@@ -20,6 +21,24 @@ export default function Toolbar() {
         } catch {
             // ignore storage errors
         }
+    }, []);
+
+    useEffect(() => {
+        const readRecentWork = () => {
+            try {
+                setHasRecentWork(!!localStorage.getItem("asmemo_last_work_pos"));
+            } catch {
+                setHasRecentWork(false);
+            }
+        };
+
+        readRecentWork();
+        window.addEventListener("storage", readRecentWork);
+        window.addEventListener("asmemo:last-work-updated", readRecentWork as EventListener);
+        return () => {
+            window.removeEventListener("storage", readRecentWork);
+            window.removeEventListener("asmemo:last-work-updated", readRecentWork as EventListener);
+        };
     }, []);
 
     const applyGridSetting = (nextShowGrid: boolean, nextShowMajorGrid: boolean) => {
@@ -72,6 +91,24 @@ export default function Toolbar() {
             paintLayer.forEach((key) => removePaint(key, true));
         }
         setSelection([]);
+    };
+
+    const handleFocusRecentWork = () => {
+        try {
+            const raw = localStorage.getItem("asmemo_last_work_pos");
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as { x: number; y: number };
+            const canvasViewport = document.querySelector("main.flex-1.relative.overflow-hidden.bg-gray-100") as HTMLElement | null;
+            const viewportCenterX = canvasViewport ? canvasViewport.clientWidth / 2 : window.innerWidth / 2;
+            const viewportCenterY = canvasViewport ? canvasViewport.clientHeight / 2 : window.innerHeight / 2;
+
+            setPan({
+                x: viewportCenterX - parsed.x * zoom,
+                y: viewportCenterY - parsed.y * zoom,
+            });
+        } catch {
+            // ignore parsing/storage errors
+        }
     };
 
     return (
@@ -169,6 +206,14 @@ export default function Toolbar() {
                     title="Clear All"
                 >
                     전체 지우기
+                </button>
+                <button
+                    className={`px-3 py-1.5 text-sm rounded border ${hasRecentWork ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" : "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"}`}
+                    onClick={handleFocusRecentWork}
+                    title="최근 작업 위치로 이동"
+                    disabled={!hasRecentWork}
+                >
+                    최근 작업
                 </button>
                 <button className="p-1 hover:bg-gray-100 rounded text-gray-600">
                     <ZoomOut size={16} />

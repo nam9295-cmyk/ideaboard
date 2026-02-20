@@ -70,6 +70,7 @@ export default function Canvas() {
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState("");
     const [editingFontSize, setEditingFontSize] = useState(16);
+    const [editingFontFamily, setEditingFontFamily] = useState("JetBrains Mono");
     const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
     const [editingTextareaWidth, setEditingTextareaWidth] = useState(60);
@@ -78,6 +79,20 @@ export default function Canvas() {
     const EDITING_PADDING_Y = 6;
     const EDITING_MAX_WIDTH = 520;
     const SPAWN_GRID_SIZE = 10;
+    const FONT_FAMILY_MAP: Record<string, string> = {
+        "JetBrains Mono": 'var(--font-jetbrains-mono), "JetBrains Mono", monospace',
+        "Noto Sans KR": 'var(--font-noto-sans-kr), "Noto Sans KR", sans-serif',
+        "IBM Plex Sans KR": 'var(--font-ibm-plex-sans-kr), "IBM Plex Sans KR", sans-serif',
+    };
+    const LAST_WORK_KEY = "asmemo_last_work_pos";
+    const recordLastWorkPos = (x: number, y: number) => {
+        try {
+            localStorage.setItem(LAST_WORK_KEY, JSON.stringify({ x, y, t: Date.now() }));
+            window.dispatchEvent(new CustomEvent("asmemo:last-work-updated"));
+        } catch {
+            // ignore storage errors
+        }
+    };
 
     const worldLeft = (0 - pan.x) / zoom;
     const worldTop = (0 - pan.y) / zoom;
@@ -212,6 +227,7 @@ export default function Canvas() {
         const editingNode = nodes.find(n => n.id === editingNodeId);
         if (editingNode?.type === 'TEXT') {
             setEditingFontSize(editingNode.fontSize || 16);
+            setEditingFontFamily((editingNode as any).fontFamily || "JetBrains Mono");
         }
     }, [editingNodeId, nodes]);
 
@@ -238,9 +254,13 @@ export default function Canvas() {
             if (!node.fontSize) {
                 updateNode(node.id, { fontSize: 16 }, true);
             }
+            if (!(node as any).fontFamily) {
+                updateNode(node.id, { fontFamily: "JetBrains Mono" } as any, true);
+            }
             setEditingNodeId(node.id);
             setEditingText(node.text);
             setEditingFontSize(node.fontSize || 16);
+            setEditingFontFamily((node as any).fontFamily || "JetBrains Mono");
             setIsDraggingNode(false); // Cancel drag if any
         } else if (node.type === 'GROUP') {
             // Enter group edit mode
@@ -529,6 +549,7 @@ export default function Canvas() {
                 }));
 
                 updateMultipleNodes(updates, true);
+                recordLastWorkPos(snappedMainX, snappedMainY);
 
                 const hudScreen = worldToScreen(
                     { x: snappedMainX, y: snappedMainY, width: 0, height: 0 },
@@ -803,6 +824,7 @@ export default function Canvas() {
                             ...defaults
                         };
                         addNode(newNode);
+                        recordLastWorkPos(worldX, worldY);
                         setToolMode('select');
                     };
 
@@ -816,11 +838,14 @@ export default function Canvas() {
                                 y: worldY,
                                 text: "",
                                 fontSize: 16,
-                            };
+                                fontFamily: "JetBrains Mono",
+                            } as any;
                             addNode(newText);
+                            recordLastWorkPos(worldX, worldY);
                             setEditingNodeId(newText.id);
                             setEditingText("");
-                            setEditingFontSize(newText.fontSize || 16);
+                            setEditingFontSize(16);
+                            setEditingFontFamily((newText as any).fontFamily || "JetBrains Mono");
                             setToolMode('select');
                             break;
                         case 'box':
@@ -1033,7 +1058,7 @@ export default function Canvas() {
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
                             >
                                 <div
-                                    className={`absolute -top-6 left-0 px-1.5 py-0.5 text-[11px] font-medium rounded-t-sm select-none ${isSelected ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}
+                                    className={`absolute -top-6 left-0 w-max whitespace-nowrap px-1.5 py-0.5 text-[11px] font-medium rounded-t-sm select-none ${isSelected ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}
                                 >
                                     {node.name || "Group"}
                                 </div>
@@ -1077,6 +1102,7 @@ export default function Canvas() {
                                     left: screen.x,
                                     top: screen.y,
                                     fontSize: (node.fontSize || 16) * zoom,
+                                    fontFamily: FONT_FAMILY_MAP[(node as any).fontFamily || "JetBrains Mono"],
                                     lineHeight: "1.2",
                                     zIndex: isEditing ? 100 : (isSelected ? 10 : 1),
                                     pointerEvents,
@@ -1098,7 +1124,7 @@ export default function Canvas() {
                                                 overflowWrap: "anywhere",
                                                 wordBreak: "break-word",
                                                 fontSize: `${editingFontSize * zoom}px`,
-                                                fontFamily: "inherit",
+                                                fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 lineHeight: "1.4",
                                                 fontWeight: "inherit",
                                                 letterSpacing: "inherit",
@@ -1132,7 +1158,7 @@ export default function Canvas() {
                                             className="outline-none bg-transparent resize-none overflow-hidden m-0 p-0 border-none block"
                                             style={{
                                                 fontSize: `${editingFontSize * zoom}px`,
-                                                fontFamily: "inherit",
+                                                fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 lineHeight: "1.4",
                                                 fontWeight: "inherit",
                                                 letterSpacing: "inherit",

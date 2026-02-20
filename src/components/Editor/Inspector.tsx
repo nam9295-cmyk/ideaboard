@@ -141,6 +141,18 @@ export default function Inspector() {
                                 <span className="text-gray-400 text-xs ml-2">px</span>
                             </div>
                         </div>
+                        <div>
+                            <label className="text-xs font-medium text-gray-500 mb-2 block">Font Family</label>
+                            <select
+                                value={(selectedNode as any).fontFamily || "JetBrains Mono"}
+                                onChange={(e) => updateNode(selectedNode.id, { fontFamily: e.target.value } as any)}
+                                className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none bg-white"
+                            >
+                                <option value="JetBrains Mono">JetBrains Mono</option>
+                                <option value="Noto Sans KR">Noto Sans KR</option>
+                                <option value="IBM Plex Sans KR">IBM Plex Sans KR</option>
+                            </select>
+                        </div>
                     </>
                 )}
 

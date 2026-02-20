@@ -24,6 +24,7 @@ export interface TextNode extends BaseNode {
     type: 'TEXT';
     text: string;
     fontSize: number;
+    fontFamily?: 'JetBrains Mono' | 'Noto Sans KR' | 'IBM Plex Sans KR';
 }
 
 export interface BoxNode extends BaseNode {
