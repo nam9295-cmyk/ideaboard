@@ -137,13 +137,15 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     const addNode = (node: CanvasNode) => {
         pushSnapshot();
-        setNodes((prev) => [...prev, node]);
+        const nodeWithGroup = { ...node, groupId: node.groupId || activeGroupId || undefined };
+        setNodes((prev) => [...prev, nodeWithGroup]);
         setSelectedNodeIds([node.id]);
     };
 
     const addNodes = (newNodes: CanvasNode[]) => {
         pushSnapshot();
-        setNodes((prev) => [...prev, ...newNodes]);
+        const nodesWithGroup = newNodes.map(n => ({ ...n, groupId: n.groupId || activeGroupId || undefined }));
+        setNodes((prev) => [...prev, ...nodesWithGroup]);
         setSelectedNodeIds(newNodes.map(n => n.id));
     };
 

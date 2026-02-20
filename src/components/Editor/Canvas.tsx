@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor } from "@/context/EditorContext";
 import { worldToScreen } from "@/utils/coords";
 import DimOverlay from "./DimOverlay";
-import { CanvasNode, FrameNode, TextNode, BoxNode, LineNode, ArrowNode, ButtonNode, InputNode, CardNode, GroupNode } from "@/types";
+import { CanvasNode } from "@/types";
 
 export default function Canvas() {
     const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
@@ -34,6 +34,18 @@ export default function Canvas() {
         nodesInitialPos: { id: string, x: number, y: number, endX?: number, endY?: number }[];
         historyRecorded?: boolean;
     } | null>(null);
+    const [snapGuide, setSnapGuide] = useState<{
+        x: number | null;
+        y: number | null;
+    }>({ x: null, y: null });
+    const [dragHud, setDragHud] = useState<{
+        x: number;
+        y: number;
+        screenX: number;
+        screenY: number;
+    } | null>(null);
+    const SNAP_GRID_SIZE = 10;
+    const SNAP_THRESHOLD = 4;
 
     // Drawing State (Line/Arrow)
     const [drawingNodeId, setDrawingNodeId] = useState<string | null>(null);
@@ -54,14 +66,59 @@ export default function Canvas() {
     // Text Editing State
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState("");
+    const [editingFontSize, setEditingFontSize] = useState(16);
+    const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
+    const [editingTextareaWidth, setEditingTextareaWidth] = useState(60);
+    const [editingTextareaHeight, setEditingTextareaHeight] = useState(28);
+    const EDITING_PADDING_X = 8;
+    const EDITING_PADDING_Y = 6;
+    const EDITING_MAX_WIDTH = 520;
+
+    useEffect(() => {
+        if (!editingNodeId) return;
+        const textarea = editingTextareaRef.current;
+        if (!textarea) return;
+
+        textarea.focus();
+        const end = textarea.value.length;
+        textarea.setSelectionRange(end, end);
+    }, [editingNodeId]);
+
+    useEffect(() => {
+        if (!editingNodeId) return;
+        const editingNode = nodes.find(n => n.id === editingNodeId);
+        if (editingNode?.type === 'TEXT') {
+            setEditingFontSize(editingNode.fontSize || 16);
+        }
+    }, [editingNodeId, nodes]);
+
+    useEffect(() => {
+        if (!editingNodeId) return;
+        const mirror = editingTextMirrorRef.current;
+        if (!mirror) return;
+
+        mirror.style.width = "auto";
+        const measuredWidth = mirror.scrollWidth;
+        const nextWidth = Math.min(EDITING_MAX_WIDTH, Math.max(60, Math.ceil(measuredWidth + EDITING_PADDING_X * 2)));
+        mirror.style.width = `${nextWidth}px`;
+        const measuredHeight = mirror.scrollHeight;
+        const nextHeight = Math.min(240, Math.max(28, Math.ceil(measuredHeight + EDITING_PADDING_Y * 2)));
+        setEditingTextareaWidth(nextWidth);
+        setEditingTextareaHeight(nextHeight);
+    }, [editingNodeId, editingText, editingFontSize, zoom, EDITING_MAX_WIDTH, EDITING_PADDING_X, EDITING_PADDING_Y]);
 
     // Start Editing or Enter Group
     const handleDoubleClick = (e: React.MouseEvent, node: CanvasNode) => {
         e.stopPropagation();
         if (node.locked) return;
         if (node.type === 'TEXT') {
+            if (!node.fontSize) {
+                updateNode(node.id, { fontSize: 16 }, true);
+            }
             setEditingNodeId(node.id);
             setEditingText(node.text);
+            setEditingFontSize(node.fontSize || 16);
             setIsDraggingNode(false); // Cancel drag if any
         } else if (node.type === 'GROUP') {
             // Enter group edit mode
@@ -78,28 +135,21 @@ export default function Canvas() {
         console.log("startNodeDrag on node:", node.id, node.type);
 
         let targetNode = node;
-        // If clicking a child node that belongs to a group, drag the whole group
-        if (node.groupId) {
+        // Outside group edit mode, dragging a child drags the parent group.
+        // Inside group edit mode, dragging should affect the child itself.
+        if (!activeGroupId && node.groupId) {
             const groupParent = nodes.find(n => n.id === node.groupId);
             if (groupParent) {
                 targetNode = groupParent;
             }
-        } // ADDED THIS BRACKET to close node.groupId check
+        }
 
-        if (activeGroupId && targetNode.groupId !== activeGroupId && targetNode.id !== activeGroupId) {
-            // If in a group edit mode, only allow interacting with children of active group
-            // Determine if the target node is a descendant of the active group
-            let isDescendant = false;
-            let currentGroupId = targetNode.groupId;
-            while (currentGroupId) {
-                if (currentGroupId === activeGroupId) {
-                    isDescendant = true;
-                    break;
-                }
-                const parent = nodes.find(n => n.id === currentGroupId);
-                currentGroupId = parent?.groupId;
+        if (activeGroupId) {
+            // In group edit mode, only direct children of active group are editable.
+            if (node.groupId !== activeGroupId) {
+                return;
             }
-            if (!isDescendant) return; // Ignore drag start outside active group
+            targetNode = node;
         }
 
         const isSelected = selectedNodeIds.includes(targetNode.id);
@@ -165,6 +215,14 @@ export default function Canvas() {
                 }
             }
 
+            if (e.key === "Escape" && activeGroupId) {
+                e.preventDefault();
+                const currentGroup = nodes.find(n => n.id === activeGroupId && n.type === 'GROUP');
+                setActiveGroupId(currentGroup?.groupId || null);
+                setSelection([]);
+                return;
+            }
+
             // Undo/Redo
             if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
                 e.preventDefault();
@@ -192,7 +250,7 @@ export default function Canvas() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [selectedNodeIds, deleteNode, editingNodeId]);
+    }, [selectedNodeIds, deleteNodes, editingNodeId, activeGroupId, nodes, setActiveGroupId, setSelection, groupNodes, ungroupNodes, undo, redo]);
 
     // Dragging & Drawing Logic
     useEffect(() => {
@@ -300,19 +358,11 @@ export default function Canvas() {
                 console.log("Dragging node:", dragRef.current.nodeId, "deltaWorld:", deltaWorldX, deltaWorldY);
 
                 const targetNode = nodes.find(n => n.id === dragRef.current?.nodeId);
-                // Restrict drag inside activeGroupId
+                // Restrict drag inside activeGroupId: Only direct children allowed
                 if (targetNode && activeGroupId) {
-                    let isDescendant = false;
-                    let currentGroupId = targetNode.groupId;
-                    while (currentGroupId) {
-                        if (currentGroupId === activeGroupId) {
-                            isDescendant = true;
-                            break;
-                        }
-                        const parent = nodes.find(n => n.id === currentGroupId);
-                        currentGroupId = parent?.groupId;
+                    if (targetNode.groupId !== activeGroupId) {
+                        return;
                     }
-                    if (!isDescendant && targetNode.id !== activeGroupId) return;
                 }
 
                 if (!dragRef.current.historyRecorded) {
@@ -324,12 +374,26 @@ export default function Canvas() {
                 const mainNodeInitial = nodesInitialPos[0];
                 let effectiveDeltaX = deltaWorldX;
                 let effectiveDeltaY = deltaWorldY;
+                let snappedMainX = mainNodeInitial.x + deltaWorldX;
+                let snappedMainY = mainNodeInitial.y + deltaWorldY;
+                let snappedOnX = false;
+                let snappedOnY = false;
 
                 if (!e.shiftKey) {
-                    const snappedX = snapToGrid(mainNodeInitial.x + deltaWorldX, gridSize);
-                    const snappedY = snapToGrid(mainNodeInitial.y + deltaWorldY, gridSize);
-                    effectiveDeltaX = snappedX - mainNodeInitial.x;
-                    effectiveDeltaY = snappedY - mainNodeInitial.y;
+                    const nearestX = Math.round(snappedMainX / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+                    const nearestY = Math.round(snappedMainY / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+
+                    if (Math.abs(snappedMainX - nearestX) <= SNAP_THRESHOLD) {
+                        snappedMainX = nearestX;
+                        snappedOnX = true;
+                    }
+                    if (Math.abs(snappedMainY - nearestY) <= SNAP_THRESHOLD) {
+                        snappedMainY = nearestY;
+                        snappedOnY = true;
+                    }
+
+                    effectiveDeltaX = snappedMainX - mainNodeInitial.x;
+                    effectiveDeltaY = snappedMainY - mainNodeInitial.y;
                 }
 
                 const updates = nodesInitialPos.map(ip => ({
@@ -343,6 +407,22 @@ export default function Canvas() {
                 }));
 
                 updateMultipleNodes(updates, true);
+
+                const hudScreen = worldToScreen(
+                    { x: snappedMainX, y: snappedMainY, width: 0, height: 0 },
+                    pan,
+                    zoom
+                );
+                setDragHud({
+                    x: Math.round(snappedMainX),
+                    y: Math.round(snappedMainY),
+                    screenX: hudScreen.x + 12,
+                    screenY: hudScreen.y - 28,
+                });
+                setSnapGuide({
+                    x: snappedOnX ? snappedMainX : null,
+                    y: snappedOnY ? snappedMainY : null,
+                });
             }
         };
 
@@ -404,6 +484,8 @@ export default function Canvas() {
             if (dragRef.current) {
                 dragRef.current = null;
                 setIsDraggingNode(false);
+                setSnapGuide({ x: null, y: null });
+                setDragHud(null);
             }
 
             // Finalize Marquee Selection
@@ -418,6 +500,8 @@ export default function Canvas() {
                 if (width > 0 && height > 0) {
                     nodes.forEach(node => {
                         if (node.visible === false || node.locked) return;
+
+                        if (activeGroupId && node.groupId !== activeGroupId) return; // Only select children of active group
 
                         // Quick bounding box check
                         let nodeX = node.x;
@@ -495,7 +579,7 @@ export default function Canvas() {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
         };
-    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection, dragRef]);
+    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, updateMultipleNodes, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection, dragRef, activeGroupId, pushSnapshot]);
 
     // Refs to store latest state
     const zoomRef = useRef(zoom);
@@ -554,6 +638,13 @@ export default function Canvas() {
         <div
             ref={containerRef}
             className={`absolute inset-0 overflow-hidden ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
+            onDoubleClick={(e) => {
+                if (!activeGroupId) return;
+                if (e.target !== e.currentTarget) return;
+                const currentGroup = nodes.find(n => n.id === activeGroupId && n.type === 'GROUP');
+                setActiveGroupId(currentGroup?.groupId || null);
+                setSelection([]);
+            }}
             onPointerDown={(e) => {
                 handleWrapperMouseDown(e); // Keeping existing name for now, but it's triggered by pointerdown
 
@@ -598,6 +689,7 @@ export default function Canvas() {
                             addNode(newText);
                             setEditingNodeId(newText.id);
                             setEditingText("");
+                            setEditingFontSize(newText.fontSize || 16);
                             setToolMode('select');
                             break;
                         case 'box':
@@ -713,11 +805,42 @@ export default function Canvas() {
                     const isSelected = selectedNodeIds.includes(node.id);
                     const isEditing = editingNodeId === node.id;
 
-                    if (node.type === 'FRAME') {
+                    // Interaction restriction: in group edit mode, only direct children are editable.
+                    const isInteractable = !activeGroupId || node.groupId === activeGroupId;
+                    const pointerEvents = isInteractable ? "auto" : "none";
+                    const opacity = isInteractable ? 1 : 0.4;
+
+                    if (node.type === 'GROUP') {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute bg-white shadow-sm border pointer-events-auto ${isSelected
+                                className={`absolute border-2 border-dashed rounded-sm ${isSelected
+                                    ? "border-blue-500 ring-2 ring-blue-500/20 z-20"
+                                    : "border-gray-400/80 hover:border-gray-600 z-0"
+                                    }`}
+                                style={{
+                                    left: screen.x,
+                                    top: screen.y,
+                                    width: Math.max(screen.width, 1),
+                                    height: Math.max(screen.height, 1),
+                                    pointerEvents,
+                                    opacity,
+                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
+                                onDoubleClick={(e) => handleDoubleClick(e, node)}
+                            >
+                                <div
+                                    className={`absolute -top-6 left-0 px-1.5 py-0.5 text-[11px] font-medium rounded-t-sm select-none ${isSelected ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}
+                                >
+                                    {node.name || "Group"}
+                                </div>
+                            </div>
+                        );
+                    } else if (node.type === 'FRAME') {
+                        return (
+                            <div
+                                key={node.id}
+                                className={`absolute bg-white shadow-sm border ${isSelected
                                     ? "border-blue-500 ring-2 ring-blue-500/20 z-10"
                                     : "border-gray-300 hover:border-gray-400 z-0"
                                     }`}
@@ -726,6 +849,8 @@ export default function Canvas() {
                                     top: screen.y,
                                     width: screen.width,
                                     height: screen.height,
+                                    pointerEvents,
+                                    opacity,
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                             >
@@ -742,7 +867,7 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute pointer-events-auto whitespace-pre
+                                className={`absolute whitespace-pre
                                     ${isSelected && !isEditing ? "ring-1 ring-blue-500 border-blue-500" : ""}
                                 `}
                                 style={{
@@ -751,52 +876,86 @@ export default function Canvas() {
                                     fontSize: (node.fontSize || 16) * zoom,
                                     lineHeight: "1.2",
                                     zIndex: isEditing ? 100 : (isSelected ? 10 : 1),
+                                    pointerEvents,
+                                    opacity,
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
                             >
                                 {isEditing ? (
-                                    <textarea
-                                        ref={(el) => {
-                                            if (el) {
-                                                // We don't want to re-focus if already focused to avoid fighting
-                                                if (document.activeElement !== el) {
-                                                    el.focus();
+                                    <>
+                                        <div
+                                            ref={editingTextMirrorRef}
+                                            aria-hidden="true"
+                                            style={{
+                                                position: "absolute",
+                                                visibility: "hidden",
+                                                pointerEvents: "none",
+                                                whiteSpace: "pre-wrap",
+                                                overflowWrap: "anywhere",
+                                                wordBreak: "break-word",
+                                                fontSize: `${editingFontSize * zoom}px`,
+                                                fontFamily: "inherit",
+                                                lineHeight: "1.4",
+                                                fontWeight: "inherit",
+                                                letterSpacing: "inherit",
+                                                padding: 0,
+                                                margin: 0,
+                                                maxWidth: `${EDITING_MAX_WIDTH}px`,
+                                            }}
+                                        >
+                                            {editingText || " "}
+                                        </div>
+                                        <textarea
+                                            ref={editingTextareaRef}
+                                            value={editingText}
+                                            onChange={(e) => setEditingText(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                e.stopPropagation();
+                                                if (e.key === "Enter" && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    saveText();
                                                 }
-                                            }
-                                        }}
-                                        value={editingText}
-                                        onChange={(e) => setEditingText(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            e.stopPropagation();
-                                            if (e.key === "Enter" && !e.shiftKey) {
-                                                e.preventDefault();
-                                                saveText();
-                                            }
-                                            if (e.key === "Escape") {
-                                                const node = nodes.find(n => n.id === editingNodeId);
-                                                if (node && node.type === 'TEXT' && !node.text) {
-                                                    deleteNode(editingNodeId);
+                                                if (e.key === "Escape") {
+                                                    const node = nodes.find(n => n.id === editingNodeId);
+                                                    if (node && node.type === 'TEXT' && !node.text) {
+                                                        deleteNode(editingNodeId);
+                                                    }
+                                                    setEditingNodeId(null);
+                                                    setToolMode('select');
                                                 }
-                                                setEditingNodeId(null);
-                                                setToolMode('select');
-                                            }
-                                        }}
-                                        onBlur={saveText}
-                                        className="outline-none bg-transparent resize-none overflow-hidden m-0 p-0 border-none block"
-                                        style={{
-                                            fontSize: "inherit",
-                                            fontFamily: "inherit",
-                                            lineHeight: "inherit",
-                                            minWidth: "1em",
-                                            color: "black",
-                                            height: "auto",
-                                            width: "max-content",
-                                        }}
-                                        cols={Math.max(editingText.length, 5)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                    />
+                                            }}
+                                            onBlur={saveText}
+                                            className="outline-none bg-transparent resize-none overflow-hidden m-0 p-0 border-none block"
+                                            style={{
+                                                fontSize: `${editingFontSize * zoom}px`,
+                                                fontFamily: "inherit",
+                                                lineHeight: "1.4",
+                                                fontWeight: "inherit",
+                                                letterSpacing: "inherit",
+                                                minWidth: "60px",
+                                                minHeight: "28px",
+                                                maxWidth: `${EDITING_MAX_WIDTH}px`,
+                                                maxHeight: "240px",
+                                                padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
+                                                color: "#fff",
+                                                background: "rgba(0,0,0,0.35)",
+                                                border: "1px solid rgba(100,180,255,0.9)",
+                                                outline: "2px solid rgba(100,180,255,0.35)",
+                                                caretColor: "#fff",
+                                                height: `${editingTextareaHeight}px`,
+                                                width: `${editingTextareaWidth}px`,
+                                                borderRadius: "6px",
+                                                whiteSpace: "pre-wrap",
+                                                overflowWrap: "anywhere",
+                                                wordBreak: "break-word",
+                                                overflow: "hidden",
+                                                resize: "none",
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        />
+                                    </>
                                 ) : (
                                     <div className="select-none text-black cursor-default">
                                         {node.text}
@@ -808,12 +967,14 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute border-2 border-black bg-white pointer-events-auto ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                                className={`absolute border-2 border-black bg-white ${isSelected ? "ring-2 ring-blue-500" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
                                     width: screen.width,
                                     height: screen.height,
+                                    pointerEvents,
+                                    opacity,
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                             />
@@ -833,12 +994,14 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute pointer-events-auto ${isSelected ? "ring-1 ring-blue-500" : ""}`}
+                                className={`absolute ${isSelected ? "ring-1 ring-blue-500" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
                                     width: screen.width,
                                     height: screen.height,
+                                    pointerEvents,
+                                    opacity,
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                             >
@@ -874,13 +1037,15 @@ export default function Canvas() {
                         return (
                             <button
                                 key={node.id}
-                                className={`absolute bg-blue-500 text-white rounded pointer-events-auto flex items-center justify-center ${isSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}
+                                className={`absolute bg-blue-500 text-white rounded flex items-center justify-center ${isSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
                                     width: screen.width,
                                     height: screen.height,
                                     fontSize: 14 * zoom,
+                                    pointerEvents,
+                                    opacity,
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                             >
@@ -891,14 +1056,17 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute border border-gray-300 rounded bg-white px-2 flex items-center text-gray-400 pointer-events-auto ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                                className={`absolute border border-gray-300 rounded bg-white px-2 flex items-center text-gray-400 ${isSelected ? "ring-2 ring-blue-500" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
                                     width: screen.width,
                                     height: screen.height,
                                     fontSize: 14 * zoom,
+                                    pointerEvents,
+                                    opacity,
                                 }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
                             >
                                 {node.placeholder}
                             </div>
@@ -907,12 +1075,14 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute bg-white border border-gray-200 shadow-sm rounded-lg p-4 pointer-events-auto flex flex-col pointer-events-auto ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                                className={`absolute bg-white border border-gray-200 shadow-sm rounded-lg p-4 flex flex-col ${isSelected ? "ring-2 ring-blue-500" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
                                     width: screen.width,
                                     height: screen.height,
+                                    pointerEvents,
+                                    opacity,
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                             >
@@ -924,6 +1094,41 @@ export default function Canvas() {
                     return null;
                 })}
             </div>
+
+            {isDraggingNode && snapGuide.x !== null && (
+                <div
+                    className="absolute pointer-events-none z-40 bg-cyan-400/90"
+                    style={{
+                        left: pan.x + snapGuide.x * zoom,
+                        top: 0,
+                        width: 1,
+                        height: "100%",
+                    }}
+                />
+            )}
+            {isDraggingNode && snapGuide.y !== null && (
+                <div
+                    className="absolute pointer-events-none z-40 bg-cyan-400/90"
+                    style={{
+                        left: 0,
+                        top: pan.y + snapGuide.y * zoom,
+                        width: "100%",
+                        height: 1,
+                    }}
+                />
+            )}
+
+            {isDraggingNode && dragHud && (
+                <div
+                    className="absolute pointer-events-none z-50 bg-black/75 text-white text-[11px] px-2 py-1 rounded"
+                    style={{
+                        left: dragHud.screenX,
+                        top: dragHud.screenY,
+                    }}
+                >
+                    X: {dragHud.x} Y: {dragHud.y}
+                </div>
+            )}
 
             {/* Box Drawing Preview */}
             {
@@ -960,6 +1165,8 @@ export default function Canvas() {
                 <div>Mouse Wheel to Zoom</div>
                 <div>Middle Click to Pan</div>
                 <div>Double Click Text to Edit</div>
+                <div>Double Click Group to Enter</div>
+                {activeGroupId && <div>Esc / Empty Double Click to Exit Group</div>}
                 <div>X: {Math.round(pan.x)} Y: {Math.round(pan.y)} Z: {zoom.toFixed(2)}</div>
             </div>
         </div>

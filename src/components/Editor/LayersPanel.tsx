@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Layout, Box, Type, Square, Minus, ArrowRight, RectangleHorizontal, LayoutTemplate, PenTool, LayoutDashboard, Eye, EyeOff, Lock, Unlock, ChevronRight, ChevronDown, ChevronLeft } from "lucide-react";
 
 export default function LayersPanel() {
-    const { nodes, selectedNodeIds, selectNode, paintLayer, paintLayerVisible, setPaintLayerVisible, updateNode, reorderNode, groupNodes, ungroupNodes } = useEditor();
+    const { nodes, selectedNodeIds, selectNode, paintLayer, paintLayerVisible, setPaintLayerVisible, updateNode, reorderNode, groupNodes, ungroupNodes, activeGroupId, setActiveGroupId, setSelection } = useEditor();
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -40,6 +40,11 @@ export default function LayersPanel() {
     };
 
     const handleDoubleClick = (node: CanvasNode, currentValue: string) => {
+        if (node.type === 'GROUP') {
+            setActiveGroupId(node.id);
+            setSelection([]);
+            return;
+        }
         setEditingNodeId(node.id);
         setEditValue(currentValue);
     };
@@ -161,6 +166,7 @@ export default function LayersPanel() {
         const isDragOver = dragOverNodeId === node.id;
         const isGroup = node.type === 'GROUP';
         const isExpanded = expandedGroupIds.has(node.id);
+        const isActiveGroup = node.id === activeGroupId;
 
         const paddingLeft = `${16 + depth * 16}px`;
 
@@ -173,7 +179,7 @@ export default function LayersPanel() {
                     onDragLeave={!isGroupChild ? handleDragLeave : undefined}
                     onDrop={(e) => !isGroupChild && handleDrop(e, node.id)}
                     onDragEnd={!isGroupChild ? handleDragEnd : undefined}
-                    className={`relative group flex items-center pr-4 py-2 text-sm cursor-pointer hover:bg-gray-100 ${isSelected ? 'bg-blue-50 text-blue-600' : 'text-gray-700'} ${!isVisible ? 'opacity-50' : ''} ${isDragging ? 'opacity-30' : ''}`}
+                    className={`relative group flex items-center pr-4 py-2 text-sm cursor-pointer hover:bg-gray-100 ${isSelected ? 'bg-blue-50 text-blue-600' : 'text-gray-700'} ${isActiveGroup ? 'ring-1 ring-blue-300 bg-blue-50/70' : ''} ${!isVisible ? 'opacity-50' : ''} ${isDragging ? 'opacity-30' : ''}`}
                     style={{ paddingLeft }}
                     onClick={() => selectNode(node.id)}
                     onDoubleClick={() => handleDoubleClick(node, name || node.type)}
