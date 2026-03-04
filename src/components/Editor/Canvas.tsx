@@ -71,6 +71,8 @@ export default function Canvas() {
     const [editingText, setEditingText] = useState("");
     const [editingFontSize, setEditingFontSize] = useState(14);
     const [editingFontFamily, setEditingFontFamily] = useState("JetBrains Mono");
+    const [editingFontWeight, setEditingFontWeight] = useState<"normal" | "bold">("normal");
+    const [editingTextAlign, setEditingTextAlign] = useState<"left" | "center" | "right">("left");
     const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
     const textMeasureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -105,7 +107,7 @@ export default function Canvas() {
     const LAST_WORK_KEY = "asmemo_last_work_pos";
     const TEXT_HIT_PADDING_X = 16;
     const TEXT_HIT_PADDING_Y = 10;
-    const getTextMetrics = (text: string, fontSize = 16, fontFamily = "JetBrains Mono") => {
+    const getTextMetrics = (text: string, fontSize = 16, fontFamily = "JetBrains Mono", fontWeight: "normal" | "bold" = "normal") => {
         if (!textMeasureCanvasRef.current) {
             textMeasureCanvasRef.current = document.createElement("canvas");
         }
@@ -123,7 +125,7 @@ export default function Canvas() {
             };
         }
 
-        context.font = `${fontSize}px ${resolvedFontFamily}`;
+        context.font = `${fontWeight} ${fontSize}px ${resolvedFontFamily}`;
         const width = Math.max(
             fontSize * 0.6,
             ...lines.map((line) => context.measureText(line || " ").width)
@@ -133,7 +135,12 @@ export default function Canvas() {
         return { width, height };
     };
     const getTextLayout = (node: Extract<CanvasNode, { type: 'TEXT' }>) => {
-        const metrics = getTextMetrics(node.text, node.fontSize || 16, (node as any).fontFamily || "JetBrains Mono");
+        const metrics = getTextMetrics(
+            node.text,
+            node.fontSize || 16,
+            (node as any).fontFamily || "JetBrains Mono",
+            (node as any).fontWeight || "normal"
+        );
         const naturalWidth = metrics.width + TEXT_HIT_PADDING_X;
         const naturalHeight = metrics.height + TEXT_HIT_PADDING_Y;
         const boxWidth = typeof node.width === 'number' ? node.width : Math.max(naturalWidth, TEXT_BOX_DEFAULT_WIDTH);
@@ -143,6 +150,20 @@ export default function Canvas() {
             boxWidth,
             boxHeight,
             renderedFontSize: node.fontSize || 14,
+        };
+    };
+    const getAutoSizedTextDimensions = (
+        text: string,
+        fontSize: number,
+        fontFamily: string,
+        fontWeight: "normal" | "bold",
+        width?: number,
+        height?: number
+    ) => {
+        const metrics = getTextMetrics(text, fontSize, fontFamily, fontWeight);
+        return {
+            width: Math.max(width ?? 0, metrics.width + TEXT_HIT_PADDING_X),
+            height: Math.max(height ?? 0, metrics.height + TEXT_HIT_PADDING_Y),
         };
     };
     const getNodeBounds = (node: CanvasNode): { x: number; y: number; width: number; height: number } => {
@@ -396,8 +417,10 @@ export default function Canvas() {
         if (!editingNodeId) return;
         const editingNode = nodes.find(n => n.id === editingNodeId);
         if (editingNode?.type === 'TEXT') {
-            setEditingFontSize(editingNode.fontSize || 16);
+            setEditingFontSize(editingNode.fontSize || 14);
             setEditingFontFamily((editingNode as any).fontFamily || "JetBrains Mono");
+            setEditingFontWeight((editingNode as any).fontWeight || "normal");
+            setEditingTextAlign((editingNode as any).textAlign || "left");
         }
     }, [editingNodeId, nodes]);
 
@@ -422,15 +445,26 @@ export default function Canvas() {
         if (node.locked) return;
         if (node.type === 'TEXT') {
             if (!node.fontSize) {
-                updateNode(node.id, { fontSize: 16 }, true);
+                updateNode(node.id, { fontSize: 14 }, true);
             }
             if (!(node as any).fontFamily) {
                 updateNode(node.id, { fontFamily: "JetBrains Mono" } as any, true);
             }
+            if (!(node as any).fontWeight) {
+                updateNode(node.id, { fontWeight: "normal" } as any, true);
+            }
+            if (!(node as any).textAlign) {
+                updateNode(node.id, { textAlign: "left" } as any, true);
+            }
+            if (!(node as any).verticalAlign) {
+                updateNode(node.id, { verticalAlign: "top" } as any, true);
+            }
             setEditingNodeId(node.id);
             setEditingText(node.text);
-            setEditingFontSize(node.fontSize || 16);
+            setEditingFontSize(node.fontSize || 14);
             setEditingFontFamily((node as any).fontFamily || "JetBrains Mono");
+            setEditingFontWeight((node as any).fontWeight || "normal");
+            setEditingTextAlign((node as any).textAlign || "left");
             setIsDraggingNode(false); // Cancel drag if any
         } else if (node.type === 'GROUP') {
             // Enter group edit mode
@@ -545,7 +579,28 @@ export default function Canvas() {
             if (!editingText.trim()) {
                 deleteNode(editingNodeId);
             } else {
-                updateNode(editingNodeId, { text: editingText });
+                const existingNode = nodes.find((n) => n.id === editingNodeId);
+                if (existingNode?.type === 'TEXT') {
+                    const nextSize = getAutoSizedTextDimensions(
+                        editingText,
+                        editingFontSize,
+                        editingFontFamily,
+                        editingFontWeight,
+                        existingNode.width,
+                        existingNode.height
+                    );
+                    updateNode(editingNodeId, {
+                        text: editingText,
+                        fontSize: editingFontSize,
+                        fontFamily: editingFontFamily as any,
+                        fontWeight: editingFontWeight,
+                        textAlign: editingTextAlign,
+                        width: nextSize.width,
+                        height: nextSize.height,
+                    } as any);
+                } else {
+                    updateNode(editingNodeId, { text: editingText });
+                }
             }
             setEditingNodeId(null);
             setEditingText("");
@@ -576,13 +631,13 @@ export default function Canvas() {
             }
 
             if (!e.metaKey && !e.ctrlKey && !e.altKey) {
-                if (e.key.toLowerCase() === 't') {
+                if (e.code === 'KeyT') {
                     e.preventDefault();
                     setToolMode('text');
                     return;
                 }
 
-                if (e.key.toLowerCase() === 'v') {
+                if (e.code === 'KeyV') {
                     e.preventDefault();
                     setToolMode('select');
                     return;
@@ -1169,6 +1224,9 @@ export default function Canvas() {
                                 text: "",
                                 fontSize: 14,
                                 fontFamily: "JetBrains Mono",
+                                fontWeight: "normal",
+                                textAlign: "left",
+                                verticalAlign: "top",
                                 width: TEXT_BOX_DEFAULT_WIDTH,
                                 height: TEXT_BOX_DEFAULT_HEIGHT,
                             } as any;
@@ -1178,6 +1236,8 @@ export default function Canvas() {
                             setEditingText("");
                             setEditingFontSize(14);
                             setEditingFontFamily((newText as any).fontFamily || "JetBrains Mono");
+                            setEditingFontWeight((newText as any).fontWeight || "normal");
+                            setEditingTextAlign((newText as any).textAlign || "left");
                             setToolMode('select');
                             break;
                         case 'box':
@@ -1442,8 +1502,9 @@ export default function Canvas() {
                                                 wordBreak: "break-word",
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
+                                                fontWeight: editingFontWeight,
+                                                textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
-                                                fontWeight: "inherit",
                                                 letterSpacing: "inherit",
                                                 padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
                                                 margin: 0,
@@ -1474,8 +1535,9 @@ export default function Canvas() {
                                             style={{
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
+                                                fontWeight: editingFontWeight,
+                                                textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
-                                                fontWeight: "inherit",
                                                 letterSpacing: "inherit",
                                                 position: "absolute",
                                                 inset: 0,
@@ -1505,17 +1567,31 @@ export default function Canvas() {
                                     </>
                                 ) : (
                                     <div
-                                        className="h-full w-full select-none text-slate-900 cursor-default"
+                                        className="h-full w-full select-none text-slate-900 cursor-default flex"
                                         style={{
                                             padding: `${(TEXT_HIT_PADDING_Y / 2) * zoom}px ${(TEXT_HIT_PADDING_X / 2) * zoom}px`,
                                             fontSize: textLayout.renderedFontSize * zoom,
                                             fontFamily: FONT_FAMILY_MAP[(node as any).fontFamily || "JetBrains Mono"],
+                                            fontWeight: (node as any).fontWeight || "normal",
                                             lineHeight: "1.4",
                                             boxSizing: "border-box",
                                             whiteSpace: "pre-wrap",
                                             overflowWrap: "anywhere",
                                             wordBreak: "break-word",
                                             overflow: "hidden",
+                                            textAlign: (node as any).textAlign || "left",
+                                            justifyContent:
+                                                ((node as any).textAlign || "left") === "center"
+                                                    ? "center"
+                                                    : ((node as any).textAlign || "left") === "right"
+                                                        ? "flex-end"
+                                                        : "flex-start",
+                                            alignItems:
+                                                ((node as any).verticalAlign || "top") === "middle"
+                                                    ? "center"
+                                                    : ((node as any).verticalAlign || "top") === "bottom"
+                                                        ? "flex-end"
+                                                        : "flex-start",
                                         }}
                                     >
                                         {node.text}

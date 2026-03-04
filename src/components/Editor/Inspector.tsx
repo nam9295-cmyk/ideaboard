@@ -1,9 +1,49 @@
 "use client";
 
 import { useEditor } from "@/context/EditorContext";
+import { CanvasNode } from "@/types";
 
 export default function Inspector() {
     const { nodes, selectedNodeIds, updateNode } = useEditor();
+    const measureText = (text: string, fontSize: number, fontFamily: string, fontWeight: "normal" | "bold") => {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        const lines = (text || " ").split("\n");
+        const resolvedFontFamily = fontFamily === "Noto Sans KR"
+            ? '"Noto Sans KR", sans-serif'
+            : fontFamily === "IBM Plex Sans KR"
+                ? '"IBM Plex Sans KR", sans-serif'
+                : '"JetBrains Mono", monospace';
+
+        if (!context) {
+            return {
+                width: Math.max(fontSize * 0.6, ...lines.map((line) => line.length * fontSize * 0.6)),
+                height: Math.max(fontSize * 1.2, lines.length * fontSize * 1.2),
+            };
+        }
+
+        context.font = `${fontWeight} ${fontSize}px ${resolvedFontFamily}`;
+        return {
+            width: Math.max(fontSize * 0.6, ...lines.map((line) => context.measureText(line || " ").width)),
+            height: Math.max(fontSize * 1.2, lines.length * fontSize * 1.2),
+        };
+    };
+    const updateTextNode = (node: Extract<CanvasNode, { type: "TEXT" }>, updates: Partial<CanvasNode>, resizeBox = false) => {
+        if (!resizeBox) {
+            updateNode(node.id, updates);
+            return;
+        }
+
+        const nextFontSize = (updates as any).fontSize ?? node.fontSize ?? 14;
+        const nextFontFamily = (updates as any).fontFamily ?? (node as any).fontFamily ?? "JetBrains Mono";
+        const nextFontWeight = (updates as any).fontWeight ?? (node as any).fontWeight ?? "normal";
+        const metrics = measureText(node.text, nextFontSize, nextFontFamily, nextFontWeight);
+        updateNode(node.id, {
+            ...updates,
+            width: Math.max((node.width as number | undefined) ?? 0, Math.ceil(metrics.width + 16)),
+            height: Math.max((node.height as number | undefined) ?? 0, Math.ceil(metrics.height + 10)),
+        } as any);
+    };
 
     // For now, if multiple nodes are selected, we can show a summary or just the first one?
     // Or maybe just show "Multiple Selection"
@@ -137,7 +177,14 @@ export default function Inspector() {
                         <div>
                             <label className="text-xs font-medium text-gray-500 mb-2 block">Font Size</label>
                             <div className="flex items-center border border-gray-200 rounded px-2 py-1">
-                                <input type="text" value={selectedNode.fontSize} className="w-full text-sm outline-none" readOnly />
+                                <input
+                                    type="number"
+                                    min={8}
+                                    max={200}
+                                    value={selectedNode.fontSize}
+                                    onChange={(e) => updateTextNode(selectedNode, { fontSize: Math.max(8, Number(e.target.value) || 14) } as any, true)}
+                                    className="w-full text-sm outline-none"
+                                />
                                 <span className="text-gray-400 text-xs ml-2">px</span>
                             </div>
                         </div>
@@ -145,13 +192,74 @@ export default function Inspector() {
                             <label className="text-xs font-medium text-gray-500 mb-2 block">Font Family</label>
                             <select
                                 value={(selectedNode as any).fontFamily || "JetBrains Mono"}
-                                onChange={(e) => updateNode(selectedNode.id, { fontFamily: e.target.value } as any)}
+                                onChange={(e) => updateTextNode(selectedNode, { fontFamily: e.target.value } as any, true)}
                                 className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none bg-white"
                             >
                                 <option value="JetBrains Mono">JetBrains Mono</option>
                                 <option value="Noto Sans KR">Noto Sans KR</option>
                                 <option value="IBM Plex Sans KR">IBM Plex Sans KR</option>
                             </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-gray-500 mb-2 block">Weight</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => updateTextNode(selectedNode, { fontWeight: "normal" } as any, true)}
+                                    className={`rounded border px-3 py-2 text-sm ${((selectedNode as any).fontWeight || "normal") === "normal" ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-200 bg-white text-gray-700"}`}
+                                >
+                                    Regular
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => updateTextNode(selectedNode, { fontWeight: "bold" } as any, true)}
+                                    className={`rounded border px-3 py-2 text-sm font-bold ${((selectedNode as any).fontWeight || "normal") === "bold" ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-200 bg-white text-gray-700"}`}
+                                >
+                                    Bold
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-gray-500 mb-2 block">Alignment</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    ["top", "left"], ["top", "center"], ["top", "right"],
+                                    ["middle", "left"], ["middle", "center"], ["middle", "right"],
+                                    ["bottom", "left"], ["bottom", "center"], ["bottom", "right"],
+                                ].map(([verticalAlign, textAlign]) => {
+                                    const active = (((selectedNode as any).verticalAlign || "top") === verticalAlign)
+                                        && (((selectedNode as any).textAlign || "left") === textAlign);
+                                    return (
+                                        <button
+                                            key={`${verticalAlign}-${textAlign}`}
+                                            type="button"
+                                            onClick={() => updateNode(selectedNode.id, { verticalAlign, textAlign } as any)}
+                                            className={`h-10 rounded border flex items-center justify-center ${active ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}
+                                        >
+                                            <div
+                                                className={`${active ? "bg-blue-600" : "bg-gray-400"}`}
+                                                style={{
+                                                    width: 8,
+                                                    height: 8,
+                                                    borderRadius: 2,
+                                                    transform:
+                                                        verticalAlign === "top"
+                                                            ? `translateY(-8px)`
+                                                            : verticalAlign === "bottom"
+                                                                ? `translateY(8px)`
+                                                                : "translateY(0)",
+                                                    marginLeft:
+                                                        textAlign === "left"
+                                                            ? -18
+                                                            : textAlign === "right"
+                                                                ? 18
+                                                                : 0,
+                                                }}
+                                            />
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </>
                 )}
