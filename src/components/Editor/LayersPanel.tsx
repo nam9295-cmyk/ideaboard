@@ -2,7 +2,7 @@
 
 import { useEditor } from "@/context/EditorContext";
 import { CanvasNode } from "@/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout, Box, Type, Square, Minus, ArrowRight, RectangleHorizontal, LayoutTemplate, PenTool, LayoutDashboard, Eye, EyeOff, Lock, Unlock, ChevronRight, ChevronDown, ChevronLeft } from "lucide-react";
 
 export default function LayersPanel() {
@@ -10,6 +10,8 @@ export default function LayersPanel() {
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [panelWidth, setPanelWidth] = useState(256);
+    const [isResizing, setIsResizing] = useState(false);
 
     // Drag and Drop State
     const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -24,6 +26,31 @@ export default function LayersPanel() {
             return new Set();
         }
     });
+
+    useEffect(() => {
+        if (!isResizing) {
+            document.body.style.userSelect = "";
+            return;
+        }
+
+        const handlePointerMove = (e: PointerEvent) => {
+            setPanelWidth(Math.min(400, Math.max(150, e.clientX)));
+        };
+
+        const handlePointerUp = () => {
+            setIsResizing(false);
+        };
+
+        document.body.style.userSelect = "none";
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+
+        return () => {
+            document.body.style.userSelect = "";
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        };
+    }, [isResizing]);
 
     const toggleGroup = (groupId: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -252,7 +279,10 @@ export default function LayersPanel() {
     const hasGroupSelected = selectedNodeIds.some(id => nodes.find(n => n.id === id)?.type === 'GROUP');
 
     return (
-        <aside className={`${isCollapsed ? 'w-12' : 'w-64'} bg-[#181A20] border-r border-[#313543] flex flex-col z-10 shrink-0 h-full overflow-hidden transition-all duration-300 ease-in-out`}>
+        <aside
+            className={`relative bg-[#181A20] border-r border-[#313543] flex flex-col z-10 shrink-0 h-full overflow-hidden ${isResizing ? '' : 'transition-all duration-300 ease-in-out'}`}
+            style={{ width: isCollapsed ? 48 : panelWidth }}
+        >
             <div className="flex border-b border-[#313543] shrink-0 items-center bg-[#1E2129] h-[41px]">
                 {!isCollapsed && (
                     <div className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-center text-[#94A3B8] pl-8">
@@ -347,6 +377,15 @@ export default function LayersPanel() {
                         <div className="w-1 h-1 rounded-full bg-[#3B4252]" />
                     </div>
                 </div>
+            )}
+            {!isCollapsed && (
+                <div
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-[#E2E8F0]/20 active:bg-[#E2E8F0]/40 transition-colors z-50"
+                    onPointerDown={(e) => {
+                        e.preventDefault();
+                        setIsResizing(true);
+                    }}
+                />
             )}
         </aside>
     );
