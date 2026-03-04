@@ -81,8 +81,11 @@ export default function Canvas() {
         nodeId: string;
         startX: number;
         startY: number;
+        initialX: number;
+        initialY: number;
         initialWidth: number;
         initialHeight: number;
+        direction: "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
         historyRecorded?: boolean;
     } | null>(null);
     const EDITING_PADDING_X = 8;
@@ -93,6 +96,7 @@ export default function Canvas() {
     const TEXT_BOX_DEFAULT_HEIGHT = 40;
     const TEXT_BOX_MIN_WIDTH = 80;
     const TEXT_BOX_MIN_HEIGHT = 36;
+    const TEXT_RESIZE_HANDLE_SIZE = 10;
     const FONT_FAMILY_MAP: Record<string, string> = {
         "JetBrains Mono": 'var(--font-jetbrains-mono), "JetBrains Mono", monospace',
         "Noto Sans KR": 'var(--font-noto-sans-kr), "Noto Sans KR", sans-serif',
@@ -511,7 +515,11 @@ export default function Canvas() {
             ]
         };
     };
-    const startTextResize = (e: React.PointerEvent, node: Extract<CanvasNode, { type: 'TEXT' }>) => {
+    const startTextResize = (
+        e: React.PointerEvent,
+        node: Extract<CanvasNode, { type: 'TEXT' }>,
+        direction: "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
+    ) => {
         if (node.locked) return;
         e.stopPropagation();
         e.preventDefault();
@@ -523,8 +531,11 @@ export default function Canvas() {
             nodeId: node.id,
             startX: e.clientX,
             startY: e.clientY,
+            initialX: node.x,
+            initialY: node.y,
             initialWidth: textLayout.boxWidth,
             initialHeight: textLayout.boxHeight,
+            direction,
         };
     };
 
@@ -611,7 +622,7 @@ export default function Canvas() {
     useEffect(() => {
         const handlePointerMove = (e: PointerEvent) => {
             if (textResizeRef.current && isResizingText) {
-                const { nodeId, startX, startY, initialWidth, initialHeight } = textResizeRef.current;
+                const { nodeId, startX, startY, initialX, initialY, initialWidth, initialHeight, direction } = textResizeRef.current;
                 const deltaWorldX = (e.clientX - startX) / zoom;
                 const deltaWorldY = (e.clientY - startY) / zoom;
 
@@ -620,9 +631,31 @@ export default function Canvas() {
                     textResizeRef.current.historyRecorded = true;
                 }
 
+                let nextX = initialX;
+                let nextY = initialY;
+                let nextWidth = initialWidth;
+                let nextHeight = initialHeight;
+
+                if (direction.includes("e")) {
+                    nextWidth = Math.max(TEXT_BOX_MIN_WIDTH, initialWidth + deltaWorldX);
+                }
+                if (direction.includes("s")) {
+                    nextHeight = Math.max(TEXT_BOX_MIN_HEIGHT, initialHeight + deltaWorldY);
+                }
+                if (direction.includes("w")) {
+                    nextWidth = Math.max(TEXT_BOX_MIN_WIDTH, initialWidth - deltaWorldX);
+                    nextX = initialX + (initialWidth - nextWidth);
+                }
+                if (direction.includes("n")) {
+                    nextHeight = Math.max(TEXT_BOX_MIN_HEIGHT, initialHeight - deltaWorldY);
+                    nextY = initialY + (initialHeight - nextHeight);
+                }
+
                 updateNode(nodeId, {
-                    width: Math.max(TEXT_BOX_MIN_WIDTH, initialWidth + deltaWorldX),
-                    height: Math.max(TEXT_BOX_MIN_HEIGHT, initialHeight + deltaWorldY),
+                    x: nextX,
+                    y: nextY,
+                    width: nextWidth,
+                    height: nextHeight,
                 }, true);
                 return;
             }
@@ -1427,10 +1460,6 @@ export default function Canvas() {
                                             onChange={(e) => setEditingText(e.target.value)}
                                             onKeyDown={(e) => {
                                                 e.stopPropagation();
-                                                if (e.key === "Enter" && !e.shiftKey) {
-                                                    e.preventDefault();
-                                                    saveText();
-                                                }
                                                 if (e.key === "Escape") {
                                                     const node = nodes.find(n => n.id === editingNodeId);
                                                     if (node && node.type === 'TEXT' && !node.text) {
@@ -1493,18 +1522,30 @@ export default function Canvas() {
                                     </div>
                                 )}
                                 {isSelected && !isEditing && (
-                                    <div
-                                        className="absolute rounded-full border border-blue-500 bg-white"
-                                        style={{
-                                            right: -5,
-                                            bottom: -5,
-                                            width: 10,
-                                            height: 10,
-                                            cursor: "nwse-resize",
-                                            pointerEvents: "auto",
-                                        }}
-                                        onPointerDown={(e) => startTextResize(e, node)}
-                                    />
+                                    <>
+                                        {[
+                                            { key: "n", cursor: "ns-resize", style: { top: -TEXT_RESIZE_HANDLE_SIZE / 2, left: TEXT_RESIZE_HANDLE_SIZE, right: TEXT_RESIZE_HANDLE_SIZE, height: TEXT_RESIZE_HANDLE_SIZE } },
+                                            { key: "s", cursor: "ns-resize", style: { bottom: -TEXT_RESIZE_HANDLE_SIZE / 2, left: TEXT_RESIZE_HANDLE_SIZE, right: TEXT_RESIZE_HANDLE_SIZE, height: TEXT_RESIZE_HANDLE_SIZE } },
+                                            { key: "e", cursor: "ew-resize", style: { right: -TEXT_RESIZE_HANDLE_SIZE / 2, top: TEXT_RESIZE_HANDLE_SIZE, bottom: TEXT_RESIZE_HANDLE_SIZE, width: TEXT_RESIZE_HANDLE_SIZE } },
+                                            { key: "w", cursor: "ew-resize", style: { left: -TEXT_RESIZE_HANDLE_SIZE / 2, top: TEXT_RESIZE_HANDLE_SIZE, bottom: TEXT_RESIZE_HANDLE_SIZE, width: TEXT_RESIZE_HANDLE_SIZE } },
+                                            { key: "ne", cursor: "nesw-resize", style: { top: -TEXT_RESIZE_HANDLE_SIZE / 2, right: -TEXT_RESIZE_HANDLE_SIZE / 2, width: TEXT_RESIZE_HANDLE_SIZE, height: TEXT_RESIZE_HANDLE_SIZE } },
+                                            { key: "nw", cursor: "nwse-resize", style: { top: -TEXT_RESIZE_HANDLE_SIZE / 2, left: -TEXT_RESIZE_HANDLE_SIZE / 2, width: TEXT_RESIZE_HANDLE_SIZE, height: TEXT_RESIZE_HANDLE_SIZE } },
+                                            { key: "se", cursor: "nwse-resize", style: { bottom: -TEXT_RESIZE_HANDLE_SIZE / 2, right: -TEXT_RESIZE_HANDLE_SIZE / 2, width: TEXT_RESIZE_HANDLE_SIZE, height: TEXT_RESIZE_HANDLE_SIZE } },
+                                            { key: "sw", cursor: "nesw-resize", style: { bottom: -TEXT_RESIZE_HANDLE_SIZE / 2, left: -TEXT_RESIZE_HANDLE_SIZE / 2, width: TEXT_RESIZE_HANDLE_SIZE, height: TEXT_RESIZE_HANDLE_SIZE } },
+                                        ].map((handle) => (
+                                            <div
+                                                key={handle.key}
+                                                className="absolute"
+                                                style={{
+                                                    ...handle.style,
+                                                    cursor: handle.cursor,
+                                                    pointerEvents: "auto",
+                                                    background: "transparent",
+                                                }}
+                                                onPointerDown={(e) => startTextResize(e, node, handle.key as "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw")}
+                                            />
+                                        ))}
+                                    </>
                                 )}
                             </div>
                         );
