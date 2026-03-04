@@ -73,6 +73,7 @@ export default function Canvas() {
     const [editingFontFamily, setEditingFontFamily] = useState("JetBrains Mono");
     const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
+    const textMeasureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [editingTextareaWidth, setEditingTextareaWidth] = useState(60);
     const [editingTextareaHeight, setEditingTextareaHeight] = useState(28);
     const EDITING_PADDING_X = 8;
@@ -85,6 +86,145 @@ export default function Canvas() {
         "IBM Plex Sans KR": 'var(--font-ibm-plex-sans-kr), "IBM Plex Sans KR", sans-serif',
     };
     const LAST_WORK_KEY = "asmemo_last_work_pos";
+    const TEXT_HIT_PADDING_X = 16;
+    const TEXT_HIT_PADDING_Y = 10;
+    const getTextMetrics = (text: string, fontSize = 16, fontFamily = "JetBrains Mono") => {
+        if (!textMeasureCanvasRef.current) {
+            textMeasureCanvasRef.current = document.createElement("canvas");
+        }
+        const context = textMeasureCanvasRef.current.getContext("2d");
+        const lines = (text || " ").split("\n");
+        const resolvedFontFamily = fontFamily === "Noto Sans KR"
+            ? '"Noto Sans KR", sans-serif'
+            : fontFamily === "IBM Plex Sans KR"
+                ? '"IBM Plex Sans KR", sans-serif'
+                : '"JetBrains Mono", monospace';
+        if (!context) {
+            return {
+                width: Math.max(fontSize * 0.6, ...lines.map((line) => line.length * fontSize * 0.6)),
+                height: Math.max(fontSize * 1.2, lines.length * fontSize * 1.2),
+            };
+        }
+
+        context.font = `${fontSize}px ${resolvedFontFamily}`;
+        const width = Math.max(
+            fontSize * 0.6,
+            ...lines.map((line) => context.measureText(line || " ").width)
+        );
+        const height = Math.max(fontSize * 1.2, lines.length * fontSize * 1.2);
+
+        return { width, height };
+    };
+    const getNodeBounds = (node: CanvasNode): { x: number; y: number; width: number; height: number } => {
+        if (node.type === 'TEXT') {
+            const metrics = getTextMetrics(node.text, node.fontSize || 16, (node as any).fontFamily || "JetBrains Mono");
+            return {
+                x: node.x - TEXT_HIT_PADDING_X / 2,
+                y: node.y - TEXT_HIT_PADDING_Y / 2,
+                width: metrics.width + TEXT_HIT_PADDING_X,
+                height: metrics.height + TEXT_HIT_PADDING_Y,
+            };
+        }
+
+        if (node.type === 'LINE' || node.type === 'ARROW') {
+            const geometry = getLineGeometry(node);
+            return {
+                x: geometry.minX,
+                y: geometry.minY,
+                width: Math.max(geometry.maxX - geometry.minX, 1),
+                height: Math.max(geometry.maxY - geometry.minY, 1),
+            };
+        }
+
+        return {
+            x: node.x,
+            y: node.y,
+            width: typeof node.width === 'number' ? node.width : 0,
+            height: typeof node.height === 'number' ? node.height : 0,
+        };
+    };
+    const getNodeCenter = (node: CanvasNode) => {
+        const bounds = getNodeBounds(node);
+        return {
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y + bounds.height / 2,
+        };
+    };
+    const getAnchorPointForBounds = (
+        bounds: { x: number; y: number; width: number; height: number },
+        targetPoint: { x: number; y: number }
+    ) => {
+        const centerX = bounds.x + bounds.width / 2;
+        const centerY = bounds.y + bounds.height / 2;
+        const dx = targetPoint.x - centerX;
+        const dy = targetPoint.y - centerY;
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+            return dx > 0
+                ? { x: bounds.x + bounds.width, y: centerY }
+                : { x: bounds.x, y: centerY };
+        }
+
+        return dy > 0
+            ? { x: centerX, y: bounds.y + bounds.height }
+            : { x: centerX, y: bounds.y };
+    };
+    const getLineGeometry = (node: Extract<CanvasNode, { type: 'LINE' | 'ARROW' }>) => {
+        const cpOffset = 100;
+        const startLinkedNode = node.startNodeId
+            ? nodes.find((candidate) => candidate.id === node.startNodeId && candidate.type !== 'LINE' && candidate.type !== 'ARROW')
+            : undefined;
+        const endLinkedNode = node.endNodeId
+            ? nodes.find((candidate) => candidate.id === node.endNodeId && candidate.type !== 'LINE' && candidate.type !== 'ARROW')
+            : undefined;
+
+        const startBounds = startLinkedNode ? getNodeBounds(startLinkedNode) : undefined;
+        const endBounds = endLinkedNode ? getNodeBounds(endLinkedNode) : undefined;
+
+        const startCenter = startBounds
+            ? { x: startBounds.x + startBounds.width / 2, y: startBounds.y + startBounds.height / 2 }
+            : { x: node.x, y: node.y };
+        const endCenter = endBounds
+            ? { x: endBounds.x + endBounds.width / 2, y: endBounds.y + endBounds.height / 2 }
+            : { x: node.endX, y: node.endY };
+
+        const startPoint = startBounds ? getAnchorPointForBounds(startBounds, endCenter) : startCenter;
+        const endPoint = endBounds ? getAnchorPointForBounds(endBounds, startCenter) : endCenter;
+
+        const dx = endCenter.x - startCenter.x;
+        const dy = endCenter.y - startCenter.y;
+        const isHorizontal = Math.abs(dx) > Math.abs(dy);
+        const horizontalDirection = dx >= 0 ? 1 : -1;
+        const verticalDirection = dy >= 0 ? 1 : -1;
+
+        const cp1x = isHorizontal ? startPoint.x + cpOffset * horizontalDirection : startPoint.x;
+        const cp1y = isHorizontal ? startPoint.y : startPoint.y + cpOffset * verticalDirection;
+        const cp2x = isHorizontal ? endPoint.x - cpOffset * horizontalDirection : endPoint.x;
+        const cp2y = isHorizontal ? endPoint.y : endPoint.y - cpOffset * verticalDirection;
+
+        return {
+            startPoint,
+            endPoint,
+            cp1: { x: cp1x, y: cp1y },
+            cp2: { x: cp2x, y: cp2y },
+            minX: Math.min(startPoint.x, endPoint.x, cp1x, cp2x),
+            minY: Math.min(startPoint.y, endPoint.y, cp1y, cp2y),
+            maxX: Math.max(startPoint.x, endPoint.x, cp1x, cp2x),
+            maxY: Math.max(startPoint.y, endPoint.y, cp1y, cp2y),
+        };
+    };
+    const findConnectableNodeAt = (worldX: number, worldY: number, excludeIds: string[] = []) =>
+        [...nodes].reverse().find((node) => {
+            if (excludeIds.includes(node.id)) return false;
+            if (node.type === 'LINE' || node.type === 'ARROW') return false;
+            const bounds = getNodeBounds(node);
+            return (
+                worldX >= bounds.x &&
+                worldX <= bounds.x + bounds.width &&
+                worldY >= bounds.y &&
+                worldY <= bounds.y + bounds.height
+            );
+        });
     const recordLastWorkPos = (x: number, y: number) => {
         try {
             localStorage.setItem(LAST_WORK_KEY, JSON.stringify({ x, y, t: Date.now() }));
@@ -273,6 +413,23 @@ export default function Canvas() {
         if (isSpacePressed || e.button === 1 || node.locked) return;
         if (node.type === 'TEXT' && editingNodeId === node.id) return;
         e.stopPropagation();
+
+        if (e.altKey || toolMode === 'line' || toolMode === 'arrow') {
+            const startPoint = getNodeCenter(node);
+            const newNode: any = {
+                id: crypto.randomUUID(),
+                type: e.altKey ? 'ARROW' : toolMode === 'line' ? 'LINE' : 'ARROW',
+                x: startPoint.x,
+                y: startPoint.y,
+                endX: startPoint.x,
+                endY: startPoint.y,
+                startNodeId: node.id,
+            };
+            addNode(newNode);
+            setDrawingNodeId(newNode.id);
+            setDrawingStartPos(startPoint);
+            return;
+        }
 
         console.log("startNodeDrag on node:", node.id, node.type);
 
@@ -616,6 +773,24 @@ export default function Canvas() {
             }
 
             if (drawingNodeId) {
+                const container = containerRef.current;
+                if (container) {
+                    const drawingNode = nodes.find((node) => node.id === drawingNodeId);
+                    const rect = container.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+                    const worldX = (mouseX - pan.x) / zoom;
+                    const worldY = (mouseY - pan.y) / zoom;
+
+                    const targetNode = findConnectableNodeAt(worldX, worldY, [drawingNodeId, drawingNode?.startNodeId || ""]);
+
+                    if (targetNode) {
+                        const endPoint = getNodeCenter(targetNode);
+                        updateNode(drawingNodeId, { endNodeId: targetNode.id, endX: endPoint.x, endY: endPoint.y });
+                    } else {
+                        updateNode(drawingNodeId, { endX: worldX, endY: worldY });
+                    }
+                }
                 setDrawingNodeId(null);
                 setDrawingStartPos(null);
                 setToolMode('select');
@@ -647,22 +822,11 @@ export default function Canvas() {
                         if (activeGroupId && node.groupId !== activeGroupId) return; // Only select children of active group
 
                         // Quick bounding box check
-                        let nodeX = node.x;
-                        let nodeY = node.y;
-                        let nodeW = 0;
-                        let nodeH = 0;
-
-                        if (node.type === 'LINE' || node.type === 'ARROW') {
-                            nodeX = Math.min(node.x, node.endX);
-                            nodeY = Math.min(node.y, node.endY);
-                            nodeW = Math.abs(node.endX - node.x);
-                            nodeH = Math.abs(node.endY - node.y);
-                        } else {
-                            // @ts-ignore
-                            nodeW = node.width || 0;
-                            // @ts-ignore
-                            nodeH = node.height || 0;
-                        }
+                        const bounds = getNodeBounds(node);
+                        const nodeX = bounds.x;
+                        const nodeY = bounds.y;
+                        const nodeW = bounds.width;
+                        const nodeH = bounds.height;
 
                         // Check intersection
                         if (
@@ -999,25 +1163,11 @@ export default function Canvas() {
 
             <div className="absolute inset-0 pointer-events-none">
                 {nodes.filter(n => n.visible !== false).map((node) => {
-                    let x = node.x;
-                    let y = node.y;
-                    let width = 0;
-                    let height = 0;
-
-                    if (node.type === 'LINE' || node.type === 'ARROW') {
-                        // Calculate bounding box
-                        const minX = Math.min(node.x, node.endX);
-                        const minY = Math.min(node.y, node.endY);
-                        const maxX = Math.max(node.x, node.endX);
-                        const maxY = Math.max(node.y, node.endY);
-                        x = minX;
-                        y = minY;
-                        width = Math.max(maxX - minX, 1); // Avoid 0 width
-                        height = Math.max(maxY - minY, 1); // Avoid 0 height
-                    } else {
-                        if ('width' in node && typeof node.width === 'number') width = node.width;
-                        if ('height' in node && typeof node.height === 'number') height = node.height;
-                    }
+                    const bounds = getNodeBounds(node);
+                    const x = bounds.x;
+                    const y = bounds.y;
+                    const width = bounds.width;
+                    const height = bounds.height;
 
                     const screen = worldToScreen(
                         { x, y, width, height },
@@ -1209,16 +1359,15 @@ export default function Canvas() {
                             />
                         );
                     } else if (node.type === 'LINE' || node.type === 'ARROW') {
-                        // Calculate relative coordinates within the bounding box
-                        // relative start: node.x - minX, node.y - minY
-                        // relative end: node.endX - minX, node.endY - minY
-                        const minX = Math.min(node.x, node.endX);
-                        const minY = Math.min(node.y, node.endY);
-
-                        const x1 = node.x - minX;
-                        const y1 = node.y - minY;
-                        const x2 = node.endX - minX;
-                        const y2 = node.endY - minY;
+                        const geometry = getLineGeometry(node);
+                        const x1 = geometry.startPoint.x - geometry.minX;
+                        const y1 = geometry.startPoint.y - geometry.minY;
+                        const x2 = geometry.endPoint.x - geometry.minX;
+                        const y2 = geometry.endPoint.y - geometry.minY;
+                        const cp1x = geometry.cp1.x - geometry.minX;
+                        const cp1y = geometry.cp1.y - geometry.minY;
+                        const cp2x = geometry.cp2.x - geometry.minX;
+                        const cp2y = geometry.cp2.y - geometry.minY;
 
                         return (
                             <div
@@ -1240,23 +1389,24 @@ export default function Canvas() {
                                             id={`arrowhead-${node.id}`}
                                             markerWidth="10"
                                             markerHeight="7"
-                                            refX="9"
+                                            refX="8.5"
                                             refY="3.5"
                                             orient="auto"
+                                            markerUnits="userSpaceOnUse"
                                         >
                                             <polygon
                                                 points="0 0, 10 3.5, 0 7"
-                                                fill="black"
+                                                fill="#94A3B8"
                                             />
                                         </marker>
                                     </defs>
-                                    <line
-                                        x1={x1 * zoom}
-                                        y1={y1 * zoom}
-                                        x2={x2 * zoom}
-                                        y2={y2 * zoom}
-                                        stroke="black"
-                                        strokeWidth={2 * zoom}
+                                    <path
+                                        d={`M ${x1 * zoom} ${y1 * zoom} C ${cp1x * zoom} ${cp1y * zoom}, ${cp2x * zoom} ${cp2y * zoom}, ${x2 * zoom} ${y2 * zoom}`}
+                                        stroke="#94A3B8"
+                                        strokeWidth={1.5 * zoom}
+                                        fill="none"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
                                         markerEnd={node.type === 'ARROW' ? `url(#arrowhead-${node.id})` : undefined}
                                     />
                                 </svg>

@@ -38,12 +38,16 @@ export interface LineNode extends BaseNode {
     type: 'LINE';
     endX: number;
     endY: number;
+    startNodeId?: string;
+    endNodeId?: string;
 }
 
 export interface ArrowNode extends BaseNode {
     type: 'ARROW';
     endX: number;
     endY: number;
+    startNodeId?: string;
+    endNodeId?: string;
 }
 
 export interface ButtonNode extends BaseNode {
