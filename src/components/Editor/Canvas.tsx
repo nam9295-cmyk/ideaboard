@@ -69,17 +69,30 @@ export default function Canvas() {
     // Text Editing State
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState("");
-    const [editingFontSize, setEditingFontSize] = useState(16);
+    const [editingFontSize, setEditingFontSize] = useState(14);
     const [editingFontFamily, setEditingFontFamily] = useState("JetBrains Mono");
     const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
     const textMeasureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [editingTextareaWidth, setEditingTextareaWidth] = useState(60);
     const [editingTextareaHeight, setEditingTextareaHeight] = useState(28);
+    const [isResizingText, setIsResizingText] = useState(false);
+    const textResizeRef = useRef<{
+        nodeId: string;
+        startX: number;
+        startY: number;
+        initialWidth: number;
+        initialHeight: number;
+        historyRecorded?: boolean;
+    } | null>(null);
     const EDITING_PADDING_X = 8;
     const EDITING_PADDING_Y = 6;
     const EDITING_MAX_WIDTH = 520;
     const SPAWN_GRID_SIZE = 10;
+    const TEXT_BOX_DEFAULT_WIDTH = 140;
+    const TEXT_BOX_DEFAULT_HEIGHT = 40;
+    const TEXT_BOX_MIN_WIDTH = 80;
+    const TEXT_BOX_MIN_HEIGHT = 36;
     const FONT_FAMILY_MAP: Record<string, string> = {
         "JetBrains Mono": 'var(--font-jetbrains-mono), "JetBrains Mono", monospace',
         "Noto Sans KR": 'var(--font-noto-sans-kr), "Noto Sans KR", sans-serif',
@@ -115,14 +128,27 @@ export default function Canvas() {
 
         return { width, height };
     };
+    const getTextLayout = (node: Extract<CanvasNode, { type: 'TEXT' }>) => {
+        const metrics = getTextMetrics(node.text, node.fontSize || 16, (node as any).fontFamily || "JetBrains Mono");
+        const naturalWidth = metrics.width + TEXT_HIT_PADDING_X;
+        const naturalHeight = metrics.height + TEXT_HIT_PADDING_Y;
+        const boxWidth = typeof node.width === 'number' ? node.width : Math.max(naturalWidth, TEXT_BOX_DEFAULT_WIDTH);
+        const boxHeight = typeof node.height === 'number' ? node.height : Math.max(naturalHeight, TEXT_BOX_DEFAULT_HEIGHT);
+
+        return {
+            boxWidth,
+            boxHeight,
+            renderedFontSize: node.fontSize || 14,
+        };
+    };
     const getNodeBounds = (node: CanvasNode): { x: number; y: number; width: number; height: number } => {
         if (node.type === 'TEXT') {
-            const metrics = getTextMetrics(node.text, node.fontSize || 16, (node as any).fontFamily || "JetBrains Mono");
+            const textLayout = getTextLayout(node);
             return {
-                x: node.x - TEXT_HIT_PADDING_X / 2,
-                y: node.y - TEXT_HIT_PADDING_Y / 2,
-                width: metrics.width + TEXT_HIT_PADDING_X,
-                height: metrics.height + TEXT_HIT_PADDING_Y,
+                x: node.x,
+                y: node.y,
+                width: textLayout.boxWidth,
+                height: textLayout.boxHeight,
             };
         }
 
@@ -485,6 +511,22 @@ export default function Canvas() {
             ]
         };
     };
+    const startTextResize = (e: React.PointerEvent, node: Extract<CanvasNode, { type: 'TEXT' }>) => {
+        if (node.locked) return;
+        e.stopPropagation();
+        e.preventDefault();
+
+        const textLayout = getTextLayout(node);
+        selectNode(node.id);
+        setIsResizingText(true);
+        textResizeRef.current = {
+            nodeId: node.id,
+            startX: e.clientX,
+            startY: e.clientY,
+            initialWidth: textLayout.boxWidth,
+            initialHeight: textLayout.boxHeight,
+        };
+    };
 
     // Save Text
     const saveText = () => {
@@ -522,6 +564,20 @@ export default function Canvas() {
                 return;
             }
 
+            if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+                if (e.key.toLowerCase() === 't') {
+                    e.preventDefault();
+                    setToolMode('text');
+                    return;
+                }
+
+                if (e.key.toLowerCase() === 'v') {
+                    e.preventDefault();
+                    setToolMode('select');
+                    return;
+                }
+            }
+
             // Undo/Redo
             if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
                 e.preventDefault();
@@ -549,11 +605,28 @@ export default function Canvas() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [selectedNodeIds, deleteNodes, editingNodeId, activeGroupId, nodes, setActiveGroupId, setSelection, groupNodes, ungroupNodes, undo, redo]);
+    }, [selectedNodeIds, deleteNodes, editingNodeId, activeGroupId, nodes, setActiveGroupId, setSelection, setToolMode, groupNodes, ungroupNodes, undo, redo]);
 
     // Dragging & Drawing Logic
     useEffect(() => {
         const handlePointerMove = (e: PointerEvent) => {
+            if (textResizeRef.current && isResizingText) {
+                const { nodeId, startX, startY, initialWidth, initialHeight } = textResizeRef.current;
+                const deltaWorldX = (e.clientX - startX) / zoom;
+                const deltaWorldY = (e.clientY - startY) / zoom;
+
+                if (!textResizeRef.current.historyRecorded) {
+                    pushSnapshot();
+                    textResizeRef.current.historyRecorded = true;
+                }
+
+                updateNode(nodeId, {
+                    width: Math.max(TEXT_BOX_MIN_WIDTH, initialWidth + deltaWorldX),
+                    height: Math.max(TEXT_BOX_MIN_HEIGHT, initialHeight + deltaWorldY),
+                }, true);
+                return;
+            }
+
             if (isPainting) {
                 if (isSpacePressed) return; // Spacebar priority
 
@@ -799,6 +872,10 @@ export default function Canvas() {
                 setIsPainting(false);
                 // Don't reset toolMode for pencil/eraser to allow continuous drawing
             }
+            if (textResizeRef.current) {
+                textResizeRef.current = null;
+                setIsResizingText(false);
+            }
             if (dragRef.current) {
                 const draggedNode = nodes.find((node) => node.id === dragRef.current?.nodeId);
                 if (draggedNode && draggedNode.type !== 'LINE' && draggedNode.type !== 'ARROW') {
@@ -932,7 +1009,7 @@ export default function Canvas() {
             }
         };
 
-        if (isDraggingNode || drawingNodeId || boxStartPos || isPainting || isSelecting) {
+        if (isDraggingNode || drawingNodeId || boxStartPos || isPainting || isSelecting || isResizingText) {
             console.log("Attaching event listeners. isDraggingNode:", isDraggingNode);
             window.addEventListener("pointermove", handlePointerMove);
             window.addEventListener("pointerup", handlePointerUp);
@@ -942,7 +1019,7 @@ export default function Canvas() {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
         };
-    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, updateMultipleNodes, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection, dragRef, activeGroupId, pushSnapshot]);
+    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, updateMultipleNodes, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection, dragRef, activeGroupId, pushSnapshot, isResizingText]);
 
     // Refs to store latest state
     const zoomRef = useRef(zoom);
@@ -1057,14 +1134,16 @@ export default function Canvas() {
                                 x: worldX,
                                 y: worldY,
                                 text: "",
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontFamily: "JetBrains Mono",
+                                width: TEXT_BOX_DEFAULT_WIDTH,
+                                height: TEXT_BOX_DEFAULT_HEIGHT,
                             } as any;
                             addNode(newText);
                             recordLastWorkPos(worldX, worldY);
                             setEditingNodeId(newText.id);
                             setEditingText("");
-                            setEditingFontSize(16);
+                            setEditingFontSize(14);
                             setEditingFontFamily((newText as any).fontFamily || "JetBrains Mono");
                             setToolMode('select');
                             break;
@@ -1298,21 +1377,20 @@ export default function Canvas() {
                             </div>
                         );
                     } else if (node.type === 'TEXT') {
+                        const textLayout = getTextLayout(node);
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute whitespace-pre
-                                    ${isSelected && !isEditing ? "ring-1 ring-blue-500 border-blue-500" : ""}
-                                `}
+                                className={`absolute rounded-md border bg-white/90 shadow-sm ${isSelected && !isEditing ? "ring-1 ring-blue-500 border-blue-500" : "border-slate-300"}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
-                                    fontSize: (node.fontSize || 16) * zoom,
-                                    fontFamily: FONT_FAMILY_MAP[(node as any).fontFamily || "JetBrains Mono"],
-                                    lineHeight: "1.2",
+                                    width: textLayout.boxWidth * zoom,
+                                    height: textLayout.boxHeight * zoom,
                                     zIndex: isEditing ? 100 : (isSelected ? 10 : 1),
                                     pointerEvents,
                                     opacity,
+                                    overflow: "hidden",
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
@@ -1334,9 +1412,11 @@ export default function Canvas() {
                                                 lineHeight: "1.4",
                                                 fontWeight: "inherit",
                                                 letterSpacing: "inherit",
-                                                padding: 0,
+                                                padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
                                                 margin: 0,
-                                                maxWidth: `${EDITING_MAX_WIDTH}px`,
+                                                width: "100%",
+                                                maxWidth: "100%",
+                                                boxSizing: "border-box",
                                             }}
                                         >
                                             {editingText || " "}
@@ -1361,26 +1441,29 @@ export default function Canvas() {
                                                 }
                                             }}
                                             onBlur={saveText}
-                                            className="outline-none bg-transparent resize-none overflow-hidden m-0 p-0 border-none block"
+                                            className="outline-none bg-transparent resize-none overflow-hidden m-0 border-none block"
                                             style={{
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 lineHeight: "1.4",
                                                 fontWeight: "inherit",
                                                 letterSpacing: "inherit",
-                                                minWidth: "60px",
-                                                minHeight: "28px",
-                                                maxWidth: `${EDITING_MAX_WIDTH}px`,
-                                                maxHeight: "240px",
+                                                position: "absolute",
+                                                inset: 0,
+                                                minWidth: "100%",
+                                                minHeight: "100%",
+                                                maxWidth: "100%",
+                                                maxHeight: "100%",
                                                 padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
-                                                color: "#fff",
-                                                background: "rgba(0,0,0,0.35)",
-                                                border: "1px solid rgba(100,180,255,0.9)",
-                                                outline: "2px solid rgba(100,180,255,0.35)",
-                                                caretColor: "#fff",
-                                                height: `${editingTextareaHeight}px`,
-                                                width: `${editingTextareaWidth}px`,
-                                                borderRadius: "6px",
+                                                color: "#0f172a",
+                                                background: "transparent",
+                                                border: "none",
+                                                outline: "none",
+                                                caretColor: "#0f172a",
+                                                height: "100%",
+                                                width: "100%",
+                                                borderRadius: 0,
+                                                boxSizing: "border-box",
                                                 whiteSpace: "pre-wrap",
                                                 overflowWrap: "anywhere",
                                                 wordBreak: "break-word",
@@ -1392,9 +1475,36 @@ export default function Canvas() {
                                         />
                                     </>
                                 ) : (
-                                    <div className="select-none text-black cursor-default">
+                                    <div
+                                        className="h-full w-full select-none text-slate-900 cursor-default"
+                                        style={{
+                                            padding: `${(TEXT_HIT_PADDING_Y / 2) * zoom}px ${(TEXT_HIT_PADDING_X / 2) * zoom}px`,
+                                            fontSize: textLayout.renderedFontSize * zoom,
+                                            fontFamily: FONT_FAMILY_MAP[(node as any).fontFamily || "JetBrains Mono"],
+                                            lineHeight: "1.4",
+                                            boxSizing: "border-box",
+                                            whiteSpace: "pre-wrap",
+                                            overflowWrap: "anywhere",
+                                            wordBreak: "break-word",
+                                            overflow: "hidden",
+                                        }}
+                                    >
                                         {node.text}
                                     </div>
+                                )}
+                                {isSelected && !isEditing && (
+                                    <div
+                                        className="absolute rounded-full border border-blue-500 bg-white"
+                                        style={{
+                                            right: -5,
+                                            bottom: -5,
+                                            width: 10,
+                                            height: 10,
+                                            cursor: "nwse-resize",
+                                            pointerEvents: "auto",
+                                        }}
+                                        onPointerDown={(e) => startTextResize(e, node)}
+                                    />
                                 )}
                             </div>
                         );
