@@ -8,6 +8,7 @@ export interface BaseNode {
     type: NodeType;
     width?: number;
     height?: number;
+    backgroundColor?: string;
     groupId?: string;
     visible?: boolean;
     locked?: boolean;
@@ -26,6 +27,7 @@ export interface TextNode extends BaseNode {
     fontSize: number;
     fontFamily?: 'JetBrains Mono' | 'Noto Sans KR' | 'IBM Plex Sans KR';
     fontWeight?: 'normal' | 'bold';
+    textColor?: string;
     textAlign?: 'left' | 'center' | 'right';
     verticalAlign?: 'top' | 'middle' | 'bottom';
 }

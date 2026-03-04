@@ -73,6 +73,7 @@ export default function Canvas() {
     const [editingFontFamily, setEditingFontFamily] = useState("JetBrains Mono");
     const [editingFontWeight, setEditingFontWeight] = useState<"normal" | "bold">("normal");
     const [editingTextAlign, setEditingTextAlign] = useState<"left" | "center" | "right">("left");
+    const [editingTextColor, setEditingTextColor] = useState("#0f172a");
     const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
     const textMeasureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -421,6 +422,7 @@ export default function Canvas() {
             setEditingFontFamily((editingNode as any).fontFamily || "JetBrains Mono");
             setEditingFontWeight((editingNode as any).fontWeight || "normal");
             setEditingTextAlign((editingNode as any).textAlign || "left");
+            setEditingTextColor((editingNode as any).textColor || "#0f172a");
         }
     }, [editingNodeId, nodes]);
 
@@ -453,6 +455,9 @@ export default function Canvas() {
             if (!(node as any).fontWeight) {
                 updateNode(node.id, { fontWeight: "normal" } as any, true);
             }
+            if (!(node as any).textColor) {
+                updateNode(node.id, { textColor: "#0f172a" } as any, true);
+            }
             if (!(node as any).textAlign) {
                 updateNode(node.id, { textAlign: "left" } as any, true);
             }
@@ -465,6 +470,7 @@ export default function Canvas() {
             setEditingFontFamily((node as any).fontFamily || "JetBrains Mono");
             setEditingFontWeight((node as any).fontWeight || "normal");
             setEditingTextAlign((node as any).textAlign || "left");
+            setEditingTextColor((node as any).textColor || "#0f172a");
             setIsDraggingNode(false); // Cancel drag if any
         } else if (node.type === 'GROUP') {
             // Enter group edit mode
@@ -594,6 +600,7 @@ export default function Canvas() {
                         fontSize: editingFontSize,
                         fontFamily: editingFontFamily as any,
                         fontWeight: editingFontWeight,
+                        textColor: editingTextColor,
                         textAlign: editingTextAlign,
                         width: nextSize.width,
                         height: nextSize.height,
@@ -1225,6 +1232,7 @@ export default function Canvas() {
                                 fontSize: 14,
                                 fontFamily: "JetBrains Mono",
                                 fontWeight: "normal",
+                                textColor: "#0f172a",
                                 textAlign: "left",
                                 verticalAlign: "top",
                                 width: TEXT_BOX_DEFAULT_WIDTH,
@@ -1238,6 +1246,7 @@ export default function Canvas() {
                             setEditingFontFamily((newText as any).fontFamily || "JetBrains Mono");
                             setEditingFontWeight((newText as any).fontWeight || "normal");
                             setEditingTextAlign((newText as any).textAlign || "left");
+                            setEditingTextColor((newText as any).textColor || "#0f172a");
                             setToolMode('select');
                             break;
                         case 'box':
@@ -1474,7 +1483,7 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute rounded-md border bg-white/90 shadow-sm ${isSelected && !isEditing ? "ring-1 ring-blue-500 border-blue-500" : "border-slate-300"}`}
+                                className={`absolute rounded-md border shadow-sm ${isSelected && !isEditing ? "ring-1 ring-blue-500 border-blue-500" : "border-slate-300"}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
@@ -1484,6 +1493,9 @@ export default function Canvas() {
                                     pointerEvents,
                                     opacity,
                                     overflow: "hidden",
+                                    backgroundColor: node.backgroundColor || 'transparent',
+                                    padding: node.backgroundColor ? `${4 * zoom}px ${8 * zoom}px` : '0',
+                                    borderRadius: '4px',
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
@@ -1503,6 +1515,7 @@ export default function Canvas() {
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 fontWeight: editingFontWeight,
+                                                color: editingTextColor,
                                                 textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
                                                 letterSpacing: "inherit",
@@ -1536,6 +1549,7 @@ export default function Canvas() {
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 fontWeight: editingFontWeight,
+                                                color: editingTextColor,
                                                 textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
                                                 letterSpacing: "inherit",
@@ -1546,7 +1560,6 @@ export default function Canvas() {
                                                 maxWidth: "100%",
                                                 maxHeight: "100%",
                                                 padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
-                                                color: "#0f172a",
                                                 background: "transparent",
                                                 border: "none",
                                                 outline: "none",
@@ -1573,6 +1586,7 @@ export default function Canvas() {
                                             fontSize: textLayout.renderedFontSize * zoom,
                                             fontFamily: FONT_FAMILY_MAP[(node as any).fontFamily || "JetBrains Mono"],
                                             fontWeight: (node as any).fontWeight || "normal",
+                                            color: (node as any).textColor || "#0f172a",
                                             lineHeight: "1.4",
                                             boxSizing: "border-box",
                                             whiteSpace: "pre-wrap",
@@ -1629,7 +1643,7 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute border-2 border-black bg-white ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                                className={`absolute border-2 border-black ${isSelected ? "ring-2 ring-blue-500" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
@@ -1637,6 +1651,7 @@ export default function Canvas() {
                                     height: screen.height,
                                     pointerEvents,
                                     opacity,
+                                    backgroundColor: node.backgroundColor || 'transparent',
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                             />

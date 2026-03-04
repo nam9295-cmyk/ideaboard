@@ -5,6 +5,7 @@ import { CanvasNode } from "@/types";
 
 export default function Inspector() {
     const { nodes, selectedNodeIds, updateNode } = useEditor();
+    const PASTEL_COLORS = ['#F7CAC9', '#91A8D0', '#B4E1D1', '#FDFD96', '#E2D0F9', '#FFD3B6', '#A8E6CF', '#E2E8F0'];
     const measureText = (text: string, fontSize: number, fontFamily: string, fontWeight: "normal" | "bold") => {
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
@@ -164,16 +165,72 @@ export default function Inspector() {
                     </div>
                 )}
 
-                {selectedNode.type === 'TEXT' && (
-                    <>
-                        <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Content</label>
-                            <textarea
-                                value={selectedNode.text}
-                                className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none h-20 resize-none"
-                                readOnly
+                {selectedNode.type !== 'LINE' && selectedNode.type !== 'ARROW' && (
+                    <div>
+                        <label className="text-xs font-medium text-gray-500 mb-2 block">Background Color</label>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => updateNode(selectedNode.id, { backgroundColor: 'transparent' } as any)}
+                                className={`relative h-8 w-8 rounded-full border border-gray-200 overflow-hidden ${((selectedNode as any).backgroundColor || 'transparent') === 'transparent' ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                                style={{
+                                    background:
+                                        'linear-gradient(135deg, transparent 0%, transparent 44%, #ef4444 44%, #ef4444 56%, transparent 56%, transparent 100%), #ffffff',
+                                }}
+                                aria-label="Transparent background"
+                            />
+                            {PASTEL_COLORS.map((color) => (
+                                <button
+                                    key={color}
+                                    type="button"
+                                    onClick={() => updateNode(selectedNode.id, { backgroundColor: color } as any)}
+                                    className={`h-8 w-8 rounded-full border border-gray-200 ${((selectedNode as any).backgroundColor || 'transparent') === color ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                                    style={{ backgroundColor: color }}
+                                    aria-label={`Set background color ${color}`}
+                                />
+                            ))}
+                            <label
+                                className={`relative h-8 w-8 rounded-full border border-gray-200 overflow-hidden cursor-pointer bg-white ${((selectedNode as any).backgroundColor || 'transparent') !== 'transparent' && !PASTEL_COLORS.includes((selectedNode as any).backgroundColor || '') ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                                aria-label="Custom background color"
+                            >
+                                <input
+                                    type="color"
+                                    value={((selectedNode as any).backgroundColor && (selectedNode as any).backgroundColor !== 'transparent')
+                                        ? (selectedNode as any).backgroundColor
+                                        : '#E2E8F0'}
+                                    onChange={(e) => updateNode(selectedNode.id, { backgroundColor: e.target.value } as any)}
+                                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                />
+                                <div
+                                    className="h-full w-full"
+                                    style={{
+                                        background: `conic-gradient(#ff6b6b, #ffd166, #06d6a0, #4cc9f0, #4361ee, #b5179e, #ff6b6b)`,
+                                    }}
+                                />
+                            </label>
+                        </div>
+                        <div className="mt-3 flex items-center border border-gray-200 rounded px-2 py-1">
+                            <span className="text-gray-400 text-xs mr-2">HEX</span>
+                            <input
+                                type="text"
+                                value={((selectedNode as any).backgroundColor && (selectedNode as any).backgroundColor !== 'transparent')
+                                    ? (selectedNode as any).backgroundColor.toUpperCase()
+                                    : '#E2E8F0'}
+                                onChange={(e) => {
+                                    const value = e.target.value.toUpperCase();
+                                    if (/^#[0-9A-F]{6}$/.test(value)) {
+                                        updateNode(selectedNode.id, { backgroundColor: value } as any);
+                                    }
+                                }}
+                                className="w-full text-sm outline-none"
+                                placeholder="#E2E8F0"
                             />
                         </div>
+                    </div>
+                )}
+
+                {selectedNode.type === 'TEXT' && (
+                    <>
                         <div>
                             <label className="text-xs font-medium text-gray-500 mb-2 block">Font Size</label>
                             <div className="flex items-center border border-gray-200 rounded px-2 py-1">
@@ -220,6 +277,21 @@ export default function Inspector() {
                             </div>
                         </div>
                         <div>
+                            <label className="text-xs font-medium text-gray-500 mb-2 block">Text Color</label>
+                            <div className="flex gap-2">
+                                {["#0F172A", "#FFFFFF"].map((color) => (
+                                    <button
+                                        key={color}
+                                        type="button"
+                                        onClick={() => updateNode(selectedNode.id, { textColor: color } as any)}
+                                        className={`h-8 w-8 rounded-full border border-gray-200 ${(((selectedNode as any).textColor || "#0f172a").toUpperCase() === color) ? "ring-2 ring-blue-500 ring-offset-1" : ""}`}
+                                        style={{ backgroundColor: color }}
+                                        aria-label={`Set text color ${color}`}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                        <div>
                             <label className="text-xs font-medium text-gray-500 mb-2 block">Alignment</label>
                             <div className="grid grid-cols-3 gap-2">
                                 {[
@@ -260,6 +332,14 @@ export default function Inspector() {
                                     );
                                 })}
                             </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-gray-500 mb-2 block">Content</label>
+                            <textarea
+                                value={selectedNode.text}
+                                className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none h-20 resize-none"
+                                readOnly
+                            />
                         </div>
                     </>
                 )}
