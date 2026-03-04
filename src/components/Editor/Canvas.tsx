@@ -414,11 +414,11 @@ export default function Canvas() {
         if (node.type === 'TEXT' && editingNodeId === node.id) return;
         e.stopPropagation();
 
-        if (e.altKey || toolMode === 'line' || toolMode === 'arrow') {
+        if (toolMode === 'line' || toolMode === 'arrow') {
             const startPoint = getNodeCenter(node);
             const newNode: any = {
                 id: crypto.randomUUID(),
-                type: e.altKey ? 'ARROW' : toolMode === 'line' ? 'LINE' : 'ARROW',
+                type: toolMode === 'line' ? 'LINE' : 'ARROW',
                 x: startPoint.x,
                 y: startPoint.y,
                 endX: startPoint.x,
@@ -800,6 +800,62 @@ export default function Canvas() {
                 // Don't reset toolMode for pencil/eraser to allow continuous drawing
             }
             if (dragRef.current) {
+                const draggedNode = nodes.find((node) => node.id === dragRef.current?.nodeId);
+                if (draggedNode && draggedNode.type !== 'LINE' && draggedNode.type !== 'ARROW') {
+                    const draggedBounds = getNodeBounds(draggedNode);
+                    const targetNode = [...nodes].reverse().find((node) => {
+                        if (node.id === draggedNode.id) return false;
+                        if (node.type === 'LINE' || node.type === 'ARROW') return false;
+                        if (draggedNode.groupId && node.groupId && draggedNode.groupId === node.groupId) return false;
+
+                        const targetBounds = getNodeBounds(node);
+                        return (
+                            draggedBounds.x < targetBounds.x + targetBounds.width &&
+                            draggedBounds.x + draggedBounds.width > targetBounds.x &&
+                            draggedBounds.y < targetBounds.y + targetBounds.height &&
+                            draggedBounds.y + draggedBounds.height > targetBounds.y
+                        );
+                    });
+
+                    if (targetNode) {
+                        const startNodeId = dragRef.current.nodeId;
+                        const endNodeId = targetNode.id;
+                        const hasLineBetweenNodes = nodes.some((node) =>
+                            node.type === 'LINE' &&
+                            (
+                                (node.startNodeId === startNodeId && node.endNodeId === endNodeId) ||
+                                (node.startNodeId === endNodeId && node.endNodeId === startNodeId)
+                            )
+                        );
+                        const hasArrowInDirection = nodes.some((node) =>
+                            node.type === 'ARROW' &&
+                            node.startNodeId === startNodeId &&
+                            node.endNodeId === endNodeId
+                        );
+                        const shouldCreateLine = !e.altKey && !hasLineBetweenNodes;
+                        const shouldCreateArrow = e.altKey && hasLineBetweenNodes && !hasArrowInDirection;
+
+                        if (shouldCreateLine || shouldCreateArrow) {
+                            const draggedCenter = getNodeCenter(draggedNode);
+                            const targetCenter = getNodeCenter(targetNode);
+                            addNode({
+                                id: crypto.randomUUID(),
+                                type: shouldCreateArrow ? 'ARROW' : 'LINE',
+                                x: draggedCenter.x,
+                                y: draggedCenter.y,
+                                endX: targetCenter.x,
+                                endY: targetCenter.y,
+                                startNodeId,
+                                endNodeId,
+                            } as any);
+                        }
+
+                        updateNode(dragRef.current.nodeId, {
+                            x: dragRef.current.initialX,
+                            y: dragRef.current.initialY,
+                        });
+                    }
+                }
                 dragRef.current = null;
                 setIsDraggingNode(false);
                 setSnapGuide({ x: null, y: null });
@@ -1404,6 +1460,7 @@ export default function Canvas() {
                                         d={`M ${x1 * zoom} ${y1 * zoom} C ${cp1x * zoom} ${cp1y * zoom}, ${cp2x * zoom} ${cp2y * zoom}, ${x2 * zoom} ${y2 * zoom}`}
                                         stroke="#94A3B8"
                                         strokeWidth={1.5 * zoom}
+                                        strokeDasharray={node.type === 'LINE' ? "5,5" : undefined}
                                         fill="none"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
