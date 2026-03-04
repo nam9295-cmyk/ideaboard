@@ -1429,9 +1429,9 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute border-2 border-dashed rounded-sm ${isSelected
+                                className={`absolute border-2 border-dashed ${isSelected
                                     ? "border-blue-500 ring-2 ring-blue-500/20 z-20"
-                                    : "border-gray-400/80 hover:border-gray-600 z-0"
+                                    : "border-black z-0"
                                     }`}
                                 style={{
                                     left: screen.x,
@@ -1440,6 +1440,7 @@ export default function Canvas() {
                                     height: Math.max(screen.height, 1),
                                     pointerEvents,
                                     opacity,
+                                    borderRadius: "0px",
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
@@ -1480,10 +1481,11 @@ export default function Canvas() {
                         );
                     } else if (node.type === 'TEXT') {
                         const textLayout = getTextLayout(node);
+                        const hasBackgroundColor = !!node.backgroundColor && node.backgroundColor !== 'transparent';
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute rounded-md border shadow-sm ${isSelected && !isEditing ? "ring-1 ring-blue-500 border-blue-500" : "border-slate-300"}`}
+                                className={`absolute ${isSelected && !isEditing ? "ring-1 ring-blue-500" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
@@ -1495,7 +1497,9 @@ export default function Canvas() {
                                     overflow: "hidden",
                                     backgroundColor: node.backgroundColor || 'transparent',
                                     padding: node.backgroundColor ? `${4 * zoom}px ${8 * zoom}px` : '0',
-                                    borderRadius: '4px',
+                                    border: hasBackgroundColor ? '2px solid #000' : 'none',
+                                    boxShadow: hasBackgroundColor ? '4px 4px 0px 0px #000' : 'none',
+                                    borderRadius: '0px',
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
@@ -1643,7 +1647,7 @@ export default function Canvas() {
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute border-2 border-black ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                                className={`absolute ${isSelected ? "ring-2 ring-blue-500" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
@@ -1652,6 +1656,9 @@ export default function Canvas() {
                                     pointerEvents,
                                     opacity,
                                     backgroundColor: node.backgroundColor || 'transparent',
+                                    border: '2px solid #000',
+                                    borderRadius: '0px',
+                                    boxShadow: '4px 4px 0px 0px #000',
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                             />
