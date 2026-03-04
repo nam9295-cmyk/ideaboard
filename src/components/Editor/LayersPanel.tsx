@@ -179,7 +179,7 @@ export default function LayersPanel() {
                     onDragLeave={!isGroupChild ? handleDragLeave : undefined}
                     onDrop={(e) => !isGroupChild && handleDrop(e, node.id)}
                     onDragEnd={!isGroupChild ? handleDragEnd : undefined}
-                    className={`relative group flex items-center pr-4 py-2 text-sm cursor-pointer hover:bg-gray-100 ${isSelected ? 'bg-blue-50 text-blue-600' : 'text-gray-700'} ${isActiveGroup ? 'ring-1 ring-blue-300 bg-blue-50/70' : ''} ${!isVisible ? 'opacity-50' : ''} ${isDragging ? 'opacity-30' : ''}`}
+                    className={`relative group flex items-center pr-4 py-2 text-sm cursor-pointer hover:bg-[#232734] ${isSelected ? 'bg-[#232734] text-blue-300' : 'text-[#CBD5E1]'} ${isActiveGroup ? 'ring-1 ring-blue-500 bg-[#232734]' : ''} ${!isVisible ? 'opacity-50' : ''} ${isDragging ? 'opacity-30' : ''}`}
                     style={{ paddingLeft }}
                     onClick={() => selectNode(node.id)}
                     onDoubleClick={() => handleDoubleClick(node, name || node.type)}
@@ -193,7 +193,7 @@ export default function LayersPanel() {
                     )}
 
                     {isGroup ? (
-                        <button onClick={(e) => toggleGroup(node.id, e)} className="p-0.5 mr-1 text-gray-400 hover:text-gray-600 rounded">
+                        <button onClick={(e) => toggleGroup(node.id, e)} className="p-0.5 mr-1 text-[#64748B] hover:text-[#E2E8F0] rounded">
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                     ) : (
@@ -212,7 +212,7 @@ export default function LayersPanel() {
                                 if (e.key === 'Escape') setEditingNodeId(null);
                             }}
                             autoFocus
-                            className="flex-1 w-0 bg-white border border-blue-500 rounded px-1 -my-1 py-1 outline-none text-xs text-black"
+                            className="flex-1 w-0 bg-[#181A20] border border-blue-500 rounded px-1 -my-1 py-1 outline-none text-xs text-[#E2E8F0]"
                         />
                     ) : (
                         <span className="truncate flex-1 text-xs">
@@ -221,10 +221,10 @@ export default function LayersPanel() {
                     )}
 
                     <div className="flex items-center space-x-2 ml-2">
-                        <button onClick={(e) => toggleLock(node, e)} title={isLocked ? "Unlock" : "Lock"} className="text-gray-400 hover:text-gray-600">
+                        <button onClick={(e) => toggleLock(node, e)} title={isLocked ? "Unlock" : "Lock"} className="text-[#64748B] hover:text-[#E2E8F0]">
                             {isLocked ? <Lock size={12} /> : <Unlock size={12} className="opacity-0 group-hover:opacity-100" />}
                         </button>
-                        <button onClick={(e) => toggleVisible(node, e)} title={isVisible ? "Hide" : "Show"} className="text-gray-400 hover:text-gray-600">
+                        <button onClick={(e) => toggleVisible(node, e)} title={isVisible ? "Hide" : "Show"} className="text-[#64748B] hover:text-[#E2E8F0]">
                             {isVisible ? <Eye size={12} className="opacity-0 group-hover:opacity-100" /> : <EyeOff size={12} />}
                         </button>
                     </div>
@@ -252,16 +252,16 @@ export default function LayersPanel() {
     const hasGroupSelected = selectedNodeIds.some(id => nodes.find(n => n.id === id)?.type === 'GROUP');
 
     return (
-        <aside className={`${isCollapsed ? 'w-12' : 'w-64'} bg-white border-r border-gray-200 flex flex-col z-10 shrink-0 h-full overflow-hidden transition-all duration-300 ease-in-out`}>
-            <div className="flex border-b border-gray-200 shrink-0 items-center bg-gray-50 h-[41px]">
+        <aside className={`${isCollapsed ? 'w-12' : 'w-64'} bg-[#181A20] border-r border-[#313543] flex flex-col z-10 shrink-0 h-full overflow-hidden transition-all duration-300 ease-in-out`}>
+            <div className="flex border-b border-[#313543] shrink-0 items-center bg-[#1E2129] h-[41px]">
                 {!isCollapsed && (
-                    <div className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-center text-gray-500 pl-8">
+                    <div className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-center text-[#94A3B8] pl-8">
                         Layers
                     </div>
                 )}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
-                    className={`p-2 text-gray-400 hover:text-gray-600 transition-colors ${isCollapsed ? 'mx-auto' : ''}`}
+                    className={`p-2 text-[#64748B] hover:text-[#E2E8F0] transition-colors ${isCollapsed ? 'mx-auto' : ''}`}
                     title={isCollapsed ? "Expand Layers" : "Collapse Layers"}
                 >
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -271,12 +271,12 @@ export default function LayersPanel() {
             {!isCollapsed ? (
                 <div className="flex-1 overflow-y-auto w-full py-4 min-w-[16rem]">
                     <div className="flex items-center justify-between px-4 mb-4">
-                        <span className="font-semibold text-gray-700">Layers</span>
+                        <span className="font-semibold text-[#E2E8F0]">Layers</span>
                         <div className="flex items-center space-x-2">
                             {hasGroupSelected && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); ungroupNodes(); }}
-                                    className="text-[10px] px-2 py-1 bg-red-50 text-red-600 font-medium rounded hover:bg-red-100 transition-colors flex items-center"
+                                    className="text-[10px] px-2 py-1 bg-[#3A1F24] text-red-300 font-medium rounded hover:bg-[#4A252C] transition-colors flex items-center"
                                     title="Ungroup Selected (Cmd/Ctrl + Shift + G)"
                                 >
                                     Ungroup
@@ -285,7 +285,7 @@ export default function LayersPanel() {
                             {selectedNodeIds.length >= 2 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); groupNodes(); }}
-                                    className="text-[10px] px-2 py-1 bg-blue-100 text-blue-700 font-medium rounded hover:bg-blue-200 transition-colors flex items-center"
+                                    className="text-[10px] px-2 py-1 bg-[#232734] text-blue-300 font-medium rounded hover:bg-[#2D3340] transition-colors flex items-center"
                                     title="Group Selected (Cmd/Ctrl + G)"
                                 >
                                     <Box size={10} className="mr-1" />
@@ -297,33 +297,33 @@ export default function LayersPanel() {
 
                     {frames.length > 0 && (
                         <div className="mb-6">
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 mb-2">Frames</div>
+                            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest px-4 mb-2">Frames</div>
                             {frames.map(n => renderLayerItem(n))}
                         </div>
                     )}
 
                     {groups.length > 0 && (
                         <div className="mb-6">
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 mb-2">Groups</div>
+                            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest px-4 mb-2">Groups</div>
                             {groups.map(n => renderLayerItem(n))}
                         </div>
                     )}
 
                     {items.length > 0 && (
                         <div className="mb-6">
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 mb-2">Items</div>
+                            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest px-4 mb-2">Items</div>
                             {items.map(n => renderLayerItem(n))}
                         </div>
                     )}
 
                     {paintLayer.size > 0 && (
                         <div className="mb-6">
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 mb-2">Drawing</div>
-                            <div className={`group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer ${!paintLayerVisible ? 'opacity-50' : ''}`}>
-                                <PenTool size={14} className="mr-3 shrink-0 text-gray-400" />
-                                <span className="truncate flex-1 text-xs italic text-gray-500">Pencil Details</span>
+                            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest px-4 mb-2">Drawing</div>
+                            <div className={`group flex items-center px-4 py-2 text-sm text-[#CBD5E1] hover:bg-[#232734] cursor-pointer ${!paintLayerVisible ? 'opacity-50' : ''}`}>
+                                <PenTool size={14} className="mr-3 shrink-0 text-[#64748B]" />
+                                <span className="truncate flex-1 text-xs italic text-[#94A3B8]">Pencil Details</span>
                                 <div className="flex items-center space-x-2 ml-2">
-                                    <button onClick={() => setPaintLayerVisible(!paintLayerVisible)} title={paintLayerVisible ? "Hide" : "Show"} className="text-gray-400 hover:text-gray-600">
+                                    <button onClick={() => setPaintLayerVisible(!paintLayerVisible)} title={paintLayerVisible ? "Hide" : "Show"} className="text-[#64748B] hover:text-[#E2E8F0]">
                                         {paintLayerVisible ? <Eye size={12} className="opacity-0 group-hover:opacity-100" /> : <EyeOff size={12} />}
                                     </button>
                                 </div>
@@ -332,19 +332,19 @@ export default function LayersPanel() {
                     )}
 
                     {nodes.length === 0 && paintLayer.size === 0 && (
-                        <div className="px-4 text-xs text-gray-400 italic text-center mt-10">
+                        <div className="px-4 text-xs text-[#64748B] italic text-center mt-10">
                             No layers yet
                         </div>
                     )}
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col items-center pt-6 space-y-6 text-gray-400">
+                <div className="flex-1 flex flex-col items-center pt-6 space-y-6 text-[#64748B]">
                     {/* Tiny visual representation when collapsed */}
                     <div className="flex flex-col items-center space-y-2 group cursor-pointer" onClick={() => setIsCollapsed(false)} title="Expand Layers">
                         <Layout size={18} className="group-hover:text-blue-500 transition-colors" />
-                        <div className="w-1 h-1 rounded-full bg-gray-300" />
-                        <div className="w-1 h-1 rounded-full bg-gray-300" />
-                        <div className="w-1 h-1 rounded-full bg-gray-300" />
+                        <div className="w-1 h-1 rounded-full bg-[#3B4252]" />
+                        <div className="w-1 h-1 rounded-full bg-[#3B4252]" />
+                        <div className="w-1 h-1 rounded-full bg-[#3B4252]" />
                     </div>
                 </div>
             )}

@@ -23,9 +23,9 @@ export default function Sidebar() {
             // Ignore if input/textarea is focused
             if (e.target instanceof HTMLElement && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
 
-            if (e.key.toLowerCase() === 'v') {
+            if (e.code === 'KeyV') {
                 setToolMode('select');
-            } else if (e.key.toLowerCase() === 't') {
+            } else if (e.code === 'KeyT') {
                 setToolMode('text');
             }
         };
@@ -39,8 +39,8 @@ export default function Sidebar() {
             onClick={() => setToolMode(mode)}
             className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md transition-colors text-sm font-medium
                 ${toolMode === mode
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-600 hover:bg-gray-100"
+                    ? "bg-[#232734] text-blue-300"
+                    : "text-[#94A3B8] hover:bg-[#232734]"
                 }`}
         >
             <Icon size={18} />
@@ -51,7 +51,7 @@ export default function Sidebar() {
     const snapToGrid = (v: number) => Math.round(v / gridSize) * gridSize;
 
     const getPlacementPos = () => {
-        const canvasViewport = document.querySelector("main.flex-1.relative.overflow-hidden.bg-gray-100") as HTMLElement | null;
+        const canvasViewport = document.querySelector("main.flex-1.relative.overflow-hidden.bg-\\[\\#22242B\\]") as HTMLElement | null;
         const viewportCenterScreenX = canvasViewport ? canvasViewport.clientWidth / 2 : window.innerWidth / 2;
         const viewportCenterScreenY = canvasViewport ? canvasViewport.clientHeight / 2 : window.innerHeight / 2;
 
@@ -329,17 +329,17 @@ export default function Sidebar() {
     const BlockButton = ({ onClick, icon: Icon, label }: { onClick: () => void; icon: any; label: string }) => (
         <button
             onClick={onClick}
-            className="w-full flex items-center space-x-3 px-3 py-2 rounded-md transition-colors text-sm font-medium text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200 shadow-sm"
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-md transition-colors text-sm font-medium text-[#94A3B8] hover:bg-[#232734] border border-transparent hover:border-[#3B4252] shadow-sm"
         >
-            <Icon size={18} className="text-blue-500" />
+            <Icon size={18} className="text-blue-400" />
             <span>{label}</span>
         </button>
     );
 
     return (
-        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 shrink-0 h-full">
-            <div className="flex border-b border-gray-200 shrink-0">
-                <div className="w-full py-3 text-xs font-bold uppercase tracking-widest text-center text-gray-500 bg-gray-50">
+        <aside className="w-64 bg-[#181A20] border-r border-[#313543] flex flex-col z-10 shrink-0 h-full">
+            <div className="flex border-b border-[#313543] shrink-0">
+                <div className="w-full py-3 text-xs font-bold uppercase tracking-widest text-center text-[#94A3B8] bg-[#1E2129]">
                     Tools
                 </div>
             </div>
@@ -348,7 +348,7 @@ export default function Sidebar() {
 
                 {/* BASICS Functionality */}
                 <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">
+                    <h3 className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3 px-3">
                         {CATEGORIES.BASICS}
                     </h3>
                     <div className="space-y-1">
@@ -362,7 +362,7 @@ export default function Sidebar() {
 
                 {/* UI ELEMENTS */}
                 <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">
+                    <h3 className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3 px-3">
                         {CATEGORIES.UI_ELEMENTS}
                     </h3>
                     <div className="space-y-1">
@@ -374,7 +374,7 @@ export default function Sidebar() {
 
                 {/* DRAWING */}
                 <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">
+                    <h3 className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3 px-3">
                         {CATEGORIES.DRAWING}
                     </h3>
                     <div className="space-y-1">
@@ -385,7 +385,7 @@ export default function Sidebar() {
 
                 {/* PAGE BLOCKS - 상세페이지 전용 */}
                 <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">
+                    <h3 className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3 px-3">
                         {CATEGORIES.DETAIL_PAGE}
                     </h3>
                     <div className="space-y-2">
@@ -395,7 +395,7 @@ export default function Sidebar() {
                         <BlockButton onClick={addFeatureBlock} icon={LayoutTemplate} label="장점 3개" />
                         <BlockButton onClick={addPricingBlock} icon={RectangleHorizontal} label="가격+구매버튼" />
 
-                        <div className="my-2 border-t border-gray-100"></div>
+                        <div className="my-2 border-t border-[#2A2E39]"></div>
 
                         <BlockButton onClick={addFaqBlock} icon={Type} label="FAQ (질문/답변)" />
                         <BlockButton onClick={addSpecTableBlock} icon={LayoutTemplate} label="스펙 표" />
@@ -407,9 +407,9 @@ export default function Sidebar() {
 
             </div>
 
-            <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0">
-                <p className="text-xs text-gray-400">Project: Untitled</p>
-                <div className="mt-2 text-[10px] text-gray-300 flex space-x-2">
+            <div className="p-4 border-t border-[#313543] bg-[#1E2129] shrink-0">
+                <p className="text-xs text-[#94A3B8]">Project: Untitled</p>
+                <div className="mt-2 text-[10px] text-[#64748B] flex space-x-2">
                     <span>V: Select</span>
                     <span>T: Text</span>
                 </div>

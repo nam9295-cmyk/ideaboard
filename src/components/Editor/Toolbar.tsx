@@ -98,7 +98,7 @@ export default function Toolbar() {
             const raw = localStorage.getItem("asmemo_last_work_pos");
             if (!raw) return;
             const parsed = JSON.parse(raw) as { x: number; y: number };
-            const canvasViewport = document.querySelector("main.flex-1.relative.overflow-hidden.bg-gray-100") as HTMLElement | null;
+            const canvasViewport = document.querySelector("main.flex-1.relative.overflow-hidden.bg-\\[\\#22242B\\]") as HTMLElement | null;
             const viewportCenterX = canvasViewport ? canvasViewport.clientWidth / 2 : window.innerWidth / 2;
             const viewportCenterY = canvasViewport ? canvasViewport.clientHeight / 2 : window.innerHeight / 2;
 
@@ -112,16 +112,16 @@ export default function Toolbar() {
     };
 
     return (
-        <div className="h-12 bg-white border-b border-gray-200 flex items-center px-4 justify-between z-10 shrink-0">
+        <div className="h-12 bg-[#181A20] border-b border-[#313543] text-[#E2E8F0] flex items-center px-4 justify-between z-10 shrink-0">
             <div className="flex items-center space-x-2">
                 <span className="font-bold text-lg mr-4">MockupEditor</span>
-                <div className="h-6 w-px bg-gray-300 mx-2" />
+                <div className="h-6 w-px bg-[#3B4252] mx-2" />
 
                 {/* Breadcrumb for Group Edit Mode */}
                 {activeGroupId && activeGroupNode && (
-                    <div className="flex items-center space-x-2 text-sm mr-4 bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200">
+                    <div className="flex items-center space-x-2 text-sm mr-4 bg-[#232734] px-3 py-1.5 rounded-md border border-[#3B4252]">
                         <button
-                            className="text-gray-500 hover:text-gray-900 transition-colors"
+                            className="text-[#94A3B8] hover:text-white transition-colors"
                             onClick={() => {
                                 setActiveGroupId(null);
                                 setSelection([]);
@@ -129,8 +129,8 @@ export default function Toolbar() {
                         >
                             All
                         </button>
-                        <ChevronRight size={14} className="text-gray-400" />
-                        <span className="font-medium text-blue-700">
+                        <ChevronRight size={14} className="text-[#64748B]" />
+                        <span className="font-medium text-blue-300">
                             {(activeGroupNode as any).name || 'Group'}
                         </span>
                     </div>
@@ -138,54 +138,54 @@ export default function Toolbar() {
 
                 {!activeGroupId && (
                     <>
-                        <button className="p-2 hover:bg-gray-100 rounded text-blue-600 bg-blue-50">
+                        <button className="p-2 hover:bg-[#232734] rounded text-blue-400 bg-[#232734]">
                             <MousePointer2 size={18} />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 rounded text-gray-600">
+                        <button className="p-2 hover:bg-[#232734] rounded text-[#94A3B8]">
                             <Hand size={18} />
                         </button>
-                        <div className="h-6 w-px bg-gray-300 mx-2" />
+                        <div className="h-6 w-px bg-[#3B4252] mx-2" />
 
                         <button
-                            className="p-2 hover:bg-gray-100 rounded text-gray-600"
+                            className="p-2 hover:bg-[#232734] rounded text-[#94A3B8]"
                             onClick={() => handleAddFrame(1440, 900, "Desktop")}
                             title="Add Desktop Frame (1440x900)"
                         >
                             <Monitor size={18} />
                         </button>
                         <button
-                            className="p-2 hover:bg-gray-100 rounded text-gray-600"
+                            className="p-2 hover:bg-[#232734] rounded text-[#94A3B8]"
                             onClick={() => handleAddFrame(390, 844, "Mobile")}
                             title="Add Mobile Frame (390x844)"
                         >
                             <Smartphone size={18} />
                         </button>
 
-                        <div className="h-6 w-px bg-gray-300 mx-2" />
+                        <div className="h-6 w-px bg-[#3B4252] mx-2" />
 
                         <button
-                            className={`p-2 rounded hover:bg-gray-100 ${dimOutsideFrames ? "bg-gray-200 text-blue-600" : "text-gray-600"}`}
+                            className={`p-2 rounded hover:bg-[#232734] ${dimOutsideFrames ? "bg-[#2D3340] text-blue-400" : "text-[#94A3B8]"}`}
                             onClick={() => setDimOutsideFrames(!dimOutsideFrames)}
                             title="Toggle Focus Mode (Dim Outside)"
                         >
                             <Square size={18} className={dimOutsideFrames ? "fill-current" : ""} />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 rounded text-gray-600">
+                        <button className="p-2 hover:bg-[#232734] rounded text-[#94A3B8]">
                             <Type size={18} />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 rounded text-gray-600">
+                        <button className="p-2 hover:bg-[#232734] rounded text-[#94A3B8]">
                             <ImageIcon size={18} />
                         </button>
-                        <div className="h-6 w-px bg-gray-300 mx-2" />
+                        <div className="h-6 w-px bg-[#3B4252] mx-2" />
                         <button
-                            className={`px-2 py-1 text-xs rounded border ${showGrid ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-gray-600 border-gray-200"}`}
+                            className={`px-2 py-1 text-xs rounded border ${showGrid ? "bg-[#232734] text-blue-300 border-blue-900" : "bg-[#181A20] text-[#94A3B8] border-[#3B4252]"}`}
                             onClick={() => applyGridSetting(!showGrid, !showGrid ? showMajorGrid : false)}
                             title="Toggle Grid"
                         >
                             Grid
                         </button>
                         <button
-                            className={`px-2 py-1 text-xs rounded border ${showMajorGrid && showGrid ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-gray-400 border-gray-200"} ${!showGrid ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`px-2 py-1 text-xs rounded border ${showMajorGrid && showGrid ? "bg-[#232734] text-blue-300 border-blue-900" : "bg-[#181A20] text-[#64748B] border-[#3B4252]"} ${!showGrid ? "opacity-50 cursor-not-allowed" : ""}`}
                             onClick={() => {
                                 if (!showGrid) return;
                                 applyGridSetting(showGrid, !showMajorGrid);
@@ -201,28 +201,28 @@ export default function Toolbar() {
 
             <div className="flex items-center space-x-2">
                 <button
-                    className="px-3 py-1.5 text-sm rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                    className="px-3 py-1.5 text-sm rounded border border-red-900 bg-[#3A1F24] text-red-300 hover:bg-[#4A252C]"
                     onClick={handleClearAll}
                     title="Clear All"
                 >
                     전체 지우기
                 </button>
                 <button
-                    className={`px-3 py-1.5 text-sm rounded border ${hasRecentWork ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" : "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"}`}
+                    className={`px-3 py-1.5 text-sm rounded border ${hasRecentWork ? "border-blue-900 bg-[#232734] text-blue-300 hover:bg-[#2D3340]" : "border-[#3B4252] bg-[#181A20] text-[#64748B] cursor-not-allowed"}`}
                     onClick={handleFocusRecentWork}
                     title="최근 작업 위치로 이동"
                     disabled={!hasRecentWork}
                 >
                     최근 작업
                 </button>
-                <button className="p-1 hover:bg-gray-100 rounded text-gray-600">
+                <button className="p-1 hover:bg-[#232734] rounded text-[#94A3B8]">
                     <ZoomOut size={16} />
                 </button>
-                <span className="text-sm text-gray-500 w-12 text-center">{(zoom * 100).toFixed(0)}%</span>
-                <button className="p-1 hover:bg-gray-100 rounded text-gray-600">
+                <span className="text-sm text-[#94A3B8] w-12 text-center">{(zoom * 100).toFixed(0)}%</span>
+                <button className="p-1 hover:bg-[#232734] rounded text-[#94A3B8]">
                     <ZoomIn size={16} />
                 </button>
-                <button className="ml-4 px-4 py-1.5 bg-black text-white text-sm rounded hover:bg-gray-800">
+                <button className="ml-4 px-4 py-1.5 bg-[#E2E8F0] text-[#181A20] text-sm rounded hover:bg-white">
                     Export
                 </button>
             </div>

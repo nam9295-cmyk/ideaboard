@@ -55,11 +55,11 @@ export default function Inspector() {
 
     if (!selectedNode && !isMultiple) {
         return (
-            <div className="w-72 bg-white border-l border-gray-200 flex flex-col z-10 shrink-0">
-                <div className="p-4 border-b border-gray-100">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Properties</h3>
+            <div className="w-72 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
+                <div className="p-4 border-b border-[#313543]">
+                    <h3 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Properties</h3>
                 </div>
-                <div className="p-8 text-center text-gray-400 text-sm">
+                <div className="p-8 text-center text-[#64748B] text-sm">
                     No selection
                 </div>
             </div>
@@ -68,11 +68,11 @@ export default function Inspector() {
 
     if (isMultiple) {
         return (
-            <div className="w-72 bg-white border-l border-gray-200 flex flex-col z-10 shrink-0">
-                <div className="p-4 border-b border-gray-100">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Properties</h3>
+            <div className="w-72 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
+                <div className="p-4 border-b border-[#313543]">
+                    <h3 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Properties</h3>
                 </div>
-                <div className="p-8 text-center text-gray-400 text-sm">
+                <div className="p-8 text-center text-[#64748B] text-sm">
                     {selectedNodeIds.length} items selected
                 </div>
             </div>
@@ -83,25 +83,25 @@ export default function Inspector() {
     if (!selectedNode) return null;
 
     return (
-        <div className="w-72 bg-white border-l border-gray-200 flex flex-col z-10 shrink-0">
-            <div className="p-4 border-b border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Properties</h3>
+        <div className="w-72 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
+            <div className="p-4 border-b border-[#313543]">
+                <h3 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Properties</h3>
             </div>
             <div className="p-4 space-y-6 overflow-y-auto flex-1">
 
                 {/* Common Props: Position (Start Point for Lines) */}
                 <div>
-                    <label className="text-xs font-medium text-gray-500 mb-2 block">
+                    <label className="text-xs font-medium text-[#94A3B8] mb-2 block">
                         {(selectedNode.type === 'LINE' || selectedNode.type === 'ARROW') ? 'Start Point' : 'Position'}
                     </label>
                     <div className="grid grid-cols-2 gap-2">
-                        <div className="flex items-center border border-gray-200 rounded px-2 py-1">
-                            <span className="text-gray-400 text-xs mr-2">X</span>
-                            <input type="text" value={Math.round(selectedNode.x)} className="w-full text-sm outline-none" readOnly />
+                        <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                            <span className="text-[#64748B] text-xs mr-2">X</span>
+                            <input type="text" value={Math.round(selectedNode.x)} className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]" readOnly />
                         </div>
-                        <div className="flex items-center border border-gray-200 rounded px-2 py-1">
-                            <span className="text-gray-400 text-xs mr-2">Y</span>
-                            <input type="text" value={Math.round(selectedNode.y)} className="w-full text-sm outline-none" readOnly />
+                        <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                            <span className="text-[#64748B] text-xs mr-2">Y</span>
+                            <input type="text" value={Math.round(selectedNode.y)} className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]" readOnly />
                         </div>
                     </div>
                 </div>
@@ -109,15 +109,15 @@ export default function Inspector() {
                 {/* Line/Arrow Specific: End Point */}
                 {(selectedNode.type === 'LINE' || selectedNode.type === 'ARROW') && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">End Point</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">End Point</label>
                         <div className="grid grid-cols-2 gap-2">
-                            <div className="flex items-center border border-gray-200 rounded px-2 py-1">
-                                <span className="text-gray-400 text-xs mr-2">X</span>
-                                <input type="text" value={Math.round(selectedNode.endX)} className="w-full text-sm outline-none" readOnly />
+                            <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                                <span className="text-[#64748B] text-xs mr-2">X</span>
+                                <input type="text" value={Math.round(selectedNode.endX)} className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]" readOnly />
                             </div>
-                            <div className="flex items-center border border-gray-200 rounded px-2 py-1">
-                                <span className="text-gray-400 text-xs mr-2">Y</span>
-                                <input type="text" value={Math.round(selectedNode.endY)} className="w-full text-sm outline-none" readOnly />
+                            <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                                <span className="text-[#64748B] text-xs mr-2">Y</span>
+                                <input type="text" value={Math.round(selectedNode.endY)} className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]" readOnly />
                             </div>
                         </div>
                     </div>
@@ -126,15 +126,15 @@ export default function Inspector() {
                 {/* Dimensions (For non-lines) */}
                 {('width' in selectedNode && 'height' in selectedNode) && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">Dimensions</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Dimensions</label>
                         <div className="grid grid-cols-2 gap-2">
-                            <div className="flex items-center border border-gray-200 rounded px-2 py-1">
-                                <span className="text-gray-400 text-xs mr-2">W</span>
-                                <input type="text" value={selectedNode.width} className="w-full text-sm outline-none" readOnly />
+                            <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                                <span className="text-[#64748B] text-xs mr-2">W</span>
+                                <input type="text" value={selectedNode.width} className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]" readOnly />
                             </div>
-                            <div className="flex items-center border border-gray-200 rounded px-2 py-1">
-                                <span className="text-gray-400 text-xs mr-2">H</span>
-                                <input type="text" value={selectedNode.height} className="w-full text-sm outline-none" readOnly />
+                            <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                                <span className="text-[#64748B] text-xs mr-2">H</span>
+                                <input type="text" value={selectedNode.height} className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]" readOnly />
                             </div>
                         </div>
                     </div>
@@ -143,11 +143,11 @@ export default function Inspector() {
                 {/* Specific Node Properties */}
                 {selectedNode.type === 'FRAME' && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">Name</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Name</label>
                         <input
                             type="text"
                             value={selectedNode.name}
-                            className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none"
+                            className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none text-[#E2E8F0]"
                             readOnly
                         />
                     </div>
@@ -155,24 +155,24 @@ export default function Inspector() {
 
                 {selectedNode.type === 'GROUP' && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">Group Name</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Group Name</label>
                         <input
                             type="text"
                             value={selectedNode.name}
                             onChange={(e) => updateNode(selectedNode.id, { name: e.target.value })}
-                            className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none"
+                            className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none text-[#E2E8F0]"
                         />
                     </div>
                 )}
 
                 {selectedNode.type !== 'LINE' && selectedNode.type !== 'ARROW' && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">Background Color</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Background Color</label>
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
-                                onClick={() => updateNode(selectedNode.id, { backgroundColor: 'transparent' } as any)}
-                                className={`relative h-8 w-8 rounded-full border border-gray-200 overflow-hidden ${((selectedNode as any).backgroundColor || 'transparent') === 'transparent' ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                                onClick={() => updateNode(selectedNode.id, { backgroundColor: 'transparent', textColor: '#FFFFFF' } as any)}
+                                className={`relative h-8 w-8 rounded-full border border-[#3B4252] overflow-hidden ${((selectedNode as any).backgroundColor || 'transparent') === 'transparent' ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181A20]' : ''}`}
                                 style={{
                                     background:
                                         'linear-gradient(135deg, transparent 0%, transparent 44%, #ef4444 44%, #ef4444 56%, transparent 56%, transparent 100%), #ffffff',
@@ -184,13 +184,13 @@ export default function Inspector() {
                                     key={color}
                                     type="button"
                                     onClick={() => updateNode(selectedNode.id, { backgroundColor: color } as any)}
-                                    className={`h-8 w-8 rounded-full border border-gray-200 ${((selectedNode as any).backgroundColor || 'transparent') === color ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                                    className={`h-8 w-8 rounded-full border border-[#3B4252] ${((selectedNode as any).backgroundColor || 'transparent') === color ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181A20]' : ''}`}
                                     style={{ backgroundColor: color }}
                                     aria-label={`Set background color ${color}`}
                                 />
                             ))}
                             <label
-                                className={`relative h-8 w-8 rounded-full border border-gray-200 overflow-hidden cursor-pointer bg-white ${((selectedNode as any).backgroundColor || 'transparent') !== 'transparent' && !PASTEL_COLORS.includes((selectedNode as any).backgroundColor || '') ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                                className={`relative h-8 w-8 rounded-full border border-[#3B4252] overflow-hidden cursor-pointer bg-[#1E2129] ${((selectedNode as any).backgroundColor || 'transparent') !== 'transparent' && !PASTEL_COLORS.includes((selectedNode as any).backgroundColor || '') ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181A20]' : ''}`}
                                 aria-label="Custom background color"
                             >
                                 <input
@@ -209,8 +209,8 @@ export default function Inspector() {
                                 />
                             </label>
                         </div>
-                        <div className="mt-3 flex items-center border border-gray-200 rounded px-2 py-1">
-                            <span className="text-gray-400 text-xs mr-2">HEX</span>
+                        <div className="mt-3 flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                            <span className="text-[#64748B] text-xs mr-2">HEX</span>
                             <input
                                 type="text"
                                 value={((selectedNode as any).backgroundColor && (selectedNode as any).backgroundColor !== 'transparent')
@@ -222,7 +222,7 @@ export default function Inspector() {
                                         updateNode(selectedNode.id, { backgroundColor: value } as any);
                                     }
                                 }}
-                                className="w-full text-sm outline-none"
+                                className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]"
                                 placeholder="#E2E8F0"
                             />
                         </div>
@@ -232,25 +232,25 @@ export default function Inspector() {
                 {selectedNode.type === 'TEXT' && (
                     <>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Font Size</label>
-                            <div className="flex items-center border border-gray-200 rounded px-2 py-1">
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Font Size</label>
+                            <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
                                 <input
                                     type="number"
                                     min={8}
                                     max={200}
                                     value={selectedNode.fontSize}
                                     onChange={(e) => updateTextNode(selectedNode, { fontSize: Math.max(8, Number(e.target.value) || 14) } as any, true)}
-                                    className="w-full text-sm outline-none"
+                                    className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]"
                                 />
-                                <span className="text-gray-400 text-xs ml-2">px</span>
+                                <span className="text-[#64748B] text-xs ml-2">px</span>
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Font Family</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Font Family</label>
                             <select
                                 value={(selectedNode as any).fontFamily || "JetBrains Mono"}
                                 onChange={(e) => updateTextNode(selectedNode, { fontFamily: e.target.value } as any, true)}
-                                className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none bg-white"
+                                className="w-full text-sm border border-[#3B4252] rounded px-2 py-1 outline-none bg-[#1E2129] text-[#E2E8F0]"
                             >
                                 <option value="JetBrains Mono">JetBrains Mono</option>
                                 <option value="Noto Sans KR">Noto Sans KR</option>
@@ -258,33 +258,33 @@ export default function Inspector() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Weight</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Weight</label>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     type="button"
                                     onClick={() => updateTextNode(selectedNode, { fontWeight: "normal" } as any, true)}
-                                    className={`rounded border px-3 py-2 text-sm ${((selectedNode as any).fontWeight || "normal") === "normal" ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-200 bg-white text-gray-700"}`}
+                                    className={`rounded border px-3 py-2 text-sm ${((selectedNode as any).fontWeight || "normal") === "normal" ? "border-blue-500 bg-[#232734] text-blue-300" : "border-[#3B4252] bg-[#1E2129] text-[#CBD5E1]"}`}
                                 >
                                     Regular
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => updateTextNode(selectedNode, { fontWeight: "bold" } as any, true)}
-                                    className={`rounded border px-3 py-2 text-sm font-bold ${((selectedNode as any).fontWeight || "normal") === "bold" ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-200 bg-white text-gray-700"}`}
+                                    className={`rounded border px-3 py-2 text-sm font-bold ${((selectedNode as any).fontWeight || "normal") === "bold" ? "border-blue-500 bg-[#232734] text-blue-300" : "border-[#3B4252] bg-[#1E2129] text-[#CBD5E1]"}`}
                                 >
                                     Bold
                                 </button>
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Text Color</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Text Color</label>
                             <div className="flex gap-2">
                                 {["#0F172A", "#FFFFFF"].map((color) => (
                                     <button
                                         key={color}
                                         type="button"
                                         onClick={() => updateNode(selectedNode.id, { textColor: color } as any)}
-                                        className={`h-8 w-8 rounded-full border border-gray-200 ${(((selectedNode as any).textColor || "#0f172a").toUpperCase() === color) ? "ring-2 ring-blue-500 ring-offset-1" : ""}`}
+                                        className={`h-8 w-8 rounded-full border border-[#3B4252] ${(((selectedNode as any).textColor || "#0f172a").toUpperCase() === color) ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181A20]" : ""}`}
                                         style={{ backgroundColor: color }}
                                         aria-label={`Set text color ${color}`}
                                     />
@@ -292,7 +292,7 @@ export default function Inspector() {
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Alignment</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Alignment</label>
                             <div className="grid grid-cols-3 gap-2">
                                 {[
                                     ["top", "left"], ["top", "center"], ["top", "right"],
@@ -306,10 +306,10 @@ export default function Inspector() {
                                             key={`${verticalAlign}-${textAlign}`}
                                             type="button"
                                             onClick={() => updateNode(selectedNode.id, { verticalAlign, textAlign } as any)}
-                                            className={`h-10 rounded border flex items-center justify-center ${active ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}
+                                            className={`h-10 rounded border flex items-center justify-center ${active ? "border-blue-500 bg-[#232734]" : "border-[#3B4252] bg-[#1E2129]"}`}
                                         >
                                             <div
-                                                className={`${active ? "bg-blue-600" : "bg-gray-400"}`}
+                                                className={`${active ? "bg-blue-400" : "bg-[#64748B]"}`}
                                                 style={{
                                                     width: 8,
                                                     height: 8,
@@ -334,10 +334,10 @@ export default function Inspector() {
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Content</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Content</label>
                             <textarea
                                 value={selectedNode.text}
-                                className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none h-20 resize-none"
+                                className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none h-20 resize-none text-[#E2E8F0]"
                                 readOnly
                             />
                         </div>
@@ -346,11 +346,11 @@ export default function Inspector() {
 
                 {selectedNode.type === 'BUTTON' && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">Label</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Label</label>
                         <input
                             type="text"
                             value={selectedNode.text}
-                            className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none"
+                            className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none text-[#E2E8F0]"
                             readOnly
                         />
                     </div>
@@ -358,11 +358,11 @@ export default function Inspector() {
 
                 {selectedNode.type === 'INPUT' && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">Placeholder</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Placeholder</label>
                         <input
                             type="text"
                             value={selectedNode.placeholder || ''}
-                            className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none"
+                            className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none text-[#E2E8F0]"
                             readOnly
                         />
                     </div>
@@ -371,19 +371,19 @@ export default function Inspector() {
                 {selectedNode.type === 'CARD' && (
                     <>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Title</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Title</label>
                             <input
                                 type="text"
                                 value={selectedNode.title || ''}
-                                className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none"
+                                className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none text-[#E2E8F0]"
                                 readOnly
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-gray-500 mb-2 block">Content</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Content</label>
                             <textarea
                                 value={selectedNode.content || ''}
-                                className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none h-20 resize-none"
+                                className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none h-20 resize-none text-[#E2E8F0]"
                                 readOnly
                             />
                         </div>
@@ -392,10 +392,10 @@ export default function Inspector() {
 
                 {selectedNode.type === 'BOX' && (
                     <div>
-                        <label className="text-xs font-medium text-gray-500 mb-2 block">Fill</label>
+                        <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Fill</label>
                         <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 rounded border border-gray-200 bg-white"></div>
-                            <div className="flex-1 border border-gray-200 rounded px-2 py-1 text-sm text-gray-600">
+                            <div className="w-8 h-8 rounded border border-[#3B4252] bg-[#1E2129]"></div>
+                            <div className="flex-1 border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 text-sm text-[#CBD5E1]">
                                 {selectedNode.color === 'transparent' ? 'None' : selectedNode.color || '#FFFFFF'}
                             </div>
                         </div>

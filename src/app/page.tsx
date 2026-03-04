@@ -8,7 +8,7 @@ import { EditorProvider } from "@/context/EditorContext";
 export default function Home() {
   return (
     <EditorProvider>
-      <div className="flex flex-col h-screen w-screen bg-gray-50 overflow-hidden">
+      <div className="flex flex-col h-screen w-screen bg-[#181A20] text-[#E2E8F0] overflow-hidden">
         {/* Top Toolbar */}
         <Toolbar />
 
@@ -20,7 +20,7 @@ export default function Home() {
           <Sidebar />
 
           {/* Main Canvas Area */}
-          <main className="flex-1 relative overflow-hidden bg-gray-100">
+          <main className="flex-1 relative overflow-hidden bg-[#22242B]">
             <Canvas />
           </main>
 

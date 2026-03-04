@@ -47,6 +47,7 @@ export default function Canvas() {
     const [lastPointerScreenPos, setLastPointerScreenPos] = useState<{ x: number; y: number } | null>(null);
     const [showGrid, setShowGrid] = useState(true);
     const [showMajorGrid, setShowMajorGrid] = useState(true);
+    const [isHudCollapsed, setIsHudCollapsed] = useState(false);
     const SNAP_GRID_SIZE = 10;
     const SNAP_THRESHOLD = 4;
 
@@ -1172,7 +1173,7 @@ export default function Canvas() {
     return (
         <div
             ref={containerRef}
-            className={`absolute inset-0 overflow-hidden ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
+            className={`absolute inset-0 overflow-hidden bg-[#22242B] ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
             onPointerMove={(e) => {
                 const container = containerRef.current;
                 if (!container) return;
@@ -1323,7 +1324,7 @@ export default function Canvas() {
                                 y1={0}
                                 x2={sx}
                                 y2={viewportSize.height}
-                                stroke="rgba(229,231,235,0.5)"
+                                stroke="rgba(255, 255, 255, 0.04)"
                                 strokeWidth={1}
                             />
                         );
@@ -1337,7 +1338,7 @@ export default function Canvas() {
                                 y1={sy}
                                 x2={viewportSize.width}
                                 y2={sy}
-                                stroke="rgba(229,231,235,0.5)"
+                                stroke="rgba(255, 255, 255, 0.04)"
                                 strokeWidth={1}
                             />
                         );
@@ -1351,7 +1352,7 @@ export default function Canvas() {
                                 y1={0}
                                 x2={sx}
                                 y2={viewportSize.height}
-                                stroke={zoom < 0.75 ? "rgba(197,204,216,0.58)" : "rgba(197,204,216,0.18)"}
+                                stroke="rgba(255, 255, 255, 0.1)"
                                 strokeWidth={1.15}
                             />
                         );
@@ -1365,7 +1366,7 @@ export default function Canvas() {
                                 y1={sy}
                                 x2={viewportSize.width}
                                 y2={sy}
-                                stroke={zoom < 0.75 ? "rgba(197,204,216,0.58)" : "rgba(197,204,216,0.18)"}
+                                stroke="rgba(255, 255, 255, 0.1)"
                                 strokeWidth={1.15}
                             />
                         );
@@ -1431,7 +1432,7 @@ export default function Canvas() {
                                 key={node.id}
                                 className={`absolute border-2 border-dashed ${isSelected
                                     ? "border-blue-500 ring-2 ring-blue-500/20 z-20"
-                                    : "border-black z-0"
+                                    : "z-0"
                                     }`}
                                 style={{
                                     left: screen.x,
@@ -1441,12 +1442,14 @@ export default function Canvas() {
                                     pointerEvents,
                                     opacity,
                                     borderRadius: "0px",
+                                    borderColor: isSelected ? undefined : "rgba(226, 232, 240, 0.5)",
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
                             >
                                 <div
-                                    className={`absolute -top-6 left-0 w-max whitespace-nowrap px-1.5 py-0.5 text-[11px] font-medium rounded-t-sm select-none ${isSelected ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}
+                                    className={`absolute -top-6 left-0 w-max whitespace-nowrap px-1.5 py-0.5 text-[11px] font-medium select-none ${isSelected ? "bg-blue-500 text-white" : "bg-[#3F3F46] text-gray-200"}`}
+                                    style={{ borderRadius: "0px" }}
                                 >
                                     {node.name || "Group"}
                                 </div>
@@ -1497,7 +1500,7 @@ export default function Canvas() {
                                     overflow: "hidden",
                                     backgroundColor: node.backgroundColor || 'transparent',
                                     padding: node.backgroundColor ? `${4 * zoom}px ${8 * zoom}px` : '0',
-                                    border: hasBackgroundColor ? '2px solid #000' : 'none',
+                                    border: hasBackgroundColor ? '2px solid #E2E8F0' : 'none',
                                     boxShadow: hasBackgroundColor ? '4px 4px 0px 0px #000' : 'none',
                                     borderRadius: '0px',
                                 }}
@@ -1519,7 +1522,7 @@ export default function Canvas() {
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 fontWeight: editingFontWeight,
-                                                color: editingTextColor,
+                                                color: editingTextColor || "#E2E8F0",
                                                 textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
                                                 letterSpacing: "inherit",
@@ -1553,7 +1556,7 @@ export default function Canvas() {
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 fontWeight: editingFontWeight,
-                                                color: editingTextColor,
+                                                color: editingTextColor || "#E2E8F0",
                                                 textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
                                                 letterSpacing: "inherit",
@@ -1564,10 +1567,10 @@ export default function Canvas() {
                                                 maxWidth: "100%",
                                                 maxHeight: "100%",
                                                 padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
-                                                background: "transparent",
+                                                background: "rgba(0,0,0,0.5)",
                                                 border: "none",
                                                 outline: "none",
-                                                caretColor: "#0f172a",
+                                                caretColor: "#E2E8F0",
                                                 height: "100%",
                                                 width: "100%",
                                                 borderRadius: 0,
@@ -1590,7 +1593,9 @@ export default function Canvas() {
                                             fontSize: textLayout.renderedFontSize * zoom,
                                             fontFamily: FONT_FAMILY_MAP[(node as any).fontFamily || "JetBrains Mono"],
                                             fontWeight: (node as any).fontWeight || "normal",
-                                            color: (node as any).textColor || "#0f172a",
+                                            color: ((node as any).backgroundColor === 'transparent' || !(node as any).backgroundColor)
+                                                ? "#E2E8F0"
+                                                : ((node as any).textColor || "#E2E8F0"),
                                             lineHeight: "1.4",
                                             boxSizing: "border-box",
                                             whiteSpace: "pre-wrap",
@@ -1656,7 +1661,7 @@ export default function Canvas() {
                                     pointerEvents,
                                     opacity,
                                     backgroundColor: node.backgroundColor || 'transparent',
-                                    border: '2px solid #000',
+                                    border: '2px solid #E2E8F0',
                                     borderRadius: '0px',
                                     boxShadow: '4px 4px 0px 0px #000',
                                 }}
@@ -1845,14 +1850,28 @@ export default function Canvas() {
                 )
             }
 
-            <div className={`absolute bottom-4 left-4 bg-white/80 backdrop-blur p-2 rounded shadow text-xs space-y-1 z-20 pointer-events-none transition-opacity ${isDraggingNode || drawingNodeId || boxStartPos ? "opacity-50" : "opacity-100"}`}>
-                <div>Space + Drag to Pan</div>
-                <div>Mouse Wheel to Zoom</div>
-                <div>Middle Click to Pan</div>
-                <div>Double Click Text to Edit</div>
-                <div>Double Click Group to Enter</div>
-                {activeGroupId && <div>Esc / Empty Double Click to Exit Group</div>}
-                <div>X: {Math.round(pan.x)} Y: {Math.round(pan.y)} Z: {zoom.toFixed(2)}</div>
+            <div className={`absolute bottom-4 left-4 bg-[#181A20]/92 border border-[#3B4252] backdrop-blur p-2 rounded shadow text-xs text-[#E2E8F0] z-20 transition-opacity ${isDraggingNode || drawingNodeId || boxStartPos ? "opacity-50" : "opacity-100"}`}>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium text-[#94A3B8]">Canvas Help</div>
+                    <button
+                        type="button"
+                        className="pointer-events-auto rounded border border-[#3B4252] bg-[#232734] px-2 py-0.5 text-[#E2E8F0] hover:bg-[#2D3340]"
+                        onClick={() => setIsHudCollapsed((prev) => !prev)}
+                    >
+                        {isHudCollapsed ? "Open" : "Hide"}
+                    </button>
+                </div>
+                {!isHudCollapsed && (
+                    <div className="mt-2 space-y-1">
+                        <div>Space + Drag to Pan</div>
+                        <div>Mouse Wheel to Zoom</div>
+                        <div>Middle Click to Pan</div>
+                        <div>Double Click Text to Edit</div>
+                        <div>Double Click Group to Enter</div>
+                        {activeGroupId && <div>Esc / Empty Double Click to Exit Group</div>}
+                    </div>
+                )}
+                <div className="mt-2 text-[#94A3B8]">X: {Math.round(pan.x)} Y: {Math.round(pan.y)} Z: {zoom.toFixed(2)}</div>
             </div>
         </div>
     );
