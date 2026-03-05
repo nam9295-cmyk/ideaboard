@@ -74,7 +74,7 @@ export default function Canvas() {
     const [editingFontFamily, setEditingFontFamily] = useState("JetBrains Mono");
     const [editingFontWeight, setEditingFontWeight] = useState<"normal" | "bold">("normal");
     const [editingTextAlign, setEditingTextAlign] = useState<"left" | "center" | "right">("left");
-    const [editingTextColor, setEditingTextColor] = useState("#0f172a");
+    const [editingTextColor, setEditingTextColor] = useState("#E2E8F0");
     const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
     const textMeasureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -423,7 +423,7 @@ export default function Canvas() {
             setEditingFontFamily((editingNode as any).fontFamily || "JetBrains Mono");
             setEditingFontWeight((editingNode as any).fontWeight || "normal");
             setEditingTextAlign((editingNode as any).textAlign || "left");
-            setEditingTextColor((editingNode as any).textColor || "#0f172a");
+            setEditingTextColor((editingNode as any).textColor || "#E2E8F0");
         }
     }, [editingNodeId, nodes]);
 
@@ -457,7 +457,7 @@ export default function Canvas() {
                 updateNode(node.id, { fontWeight: "normal" } as any, true);
             }
             if (!(node as any).textColor) {
-                updateNode(node.id, { textColor: "#0f172a" } as any, true);
+                updateNode(node.id, { textColor: "#E2E8F0" } as any, true);
             }
             if (!(node as any).textAlign) {
                 updateNode(node.id, { textAlign: "left" } as any, true);
@@ -471,7 +471,7 @@ export default function Canvas() {
             setEditingFontFamily((node as any).fontFamily || "JetBrains Mono");
             setEditingFontWeight((node as any).fontWeight || "normal");
             setEditingTextAlign((node as any).textAlign || "left");
-            setEditingTextColor((node as any).textColor || "#0f172a");
+            setEditingTextColor((node as any).textColor || "#E2E8F0");
             setIsDraggingNode(false); // Cancel drag if any
         } else if (node.type === 'GROUP') {
             // Enter group edit mode
@@ -542,6 +542,36 @@ export default function Canvas() {
                 endX: (c as any).endX,
                 endY: (c as any).endY
             }));
+        }
+
+        if (e.altKey) {
+            const clonedNode = {
+                ...(typeof structuredClone === "function"
+                    ? structuredClone(targetNode)
+                    : JSON.parse(JSON.stringify(targetNode))),
+                id: crypto.randomUUID(),
+            } as CanvasNode;
+
+            addNode(clonedNode as any);
+            selectNode(clonedNode.id);
+
+            dragRef.current = {
+                nodeId: clonedNode.id,
+                startX: e.clientX,
+                startY: e.clientY,
+                initialX: clonedNode.x,
+                initialY: clonedNode.y,
+                nodesInitialPos: [
+                    {
+                        id: clonedNode.id,
+                        x: clonedNode.x,
+                        y: clonedNode.y,
+                        endX: (clonedNode as any).endX,
+                        endY: (clonedNode as any).endY,
+                    },
+                ],
+            };
+            return;
         }
 
         dragRef.current = {
@@ -945,13 +975,16 @@ export default function Canvas() {
                 const container = containerRef.current;
                 if (container) {
                     const drawingNode = nodes.find((node) => node.id === drawingNodeId);
+                    const drawingStartNodeId = drawingNode && (drawingNode.type === 'LINE' || drawingNode.type === 'ARROW')
+                        ? drawingNode.startNodeId || ""
+                        : "";
                     const rect = container.getBoundingClientRect();
                     const mouseX = e.clientX - rect.left;
                     const mouseY = e.clientY - rect.top;
                     const worldX = (mouseX - pan.x) / zoom;
                     const worldY = (mouseY - pan.y) / zoom;
 
-                    const targetNode = findConnectableNodeAt(worldX, worldY, [drawingNodeId, drawingNode?.startNodeId || ""]);
+                    const targetNode = findConnectableNodeAt(worldX, worldY, [drawingNodeId, drawingStartNodeId]);
 
                     if (targetNode) {
                         const endPoint = getNodeCenter(targetNode);
@@ -990,7 +1023,7 @@ export default function Canvas() {
                         );
                     });
 
-                    if (targetNode) {
+                    if (targetNode && (e.metaKey || e.ctrlKey || e.shiftKey)) {
                         const startNodeId = dragRef.current.nodeId;
                         const endNodeId = targetNode.id;
                         const hasLineBetweenNodes = nodes.some((node) =>
@@ -1005,8 +1038,8 @@ export default function Canvas() {
                             node.startNodeId === startNodeId &&
                             node.endNodeId === endNodeId
                         );
-                        const shouldCreateLine = !e.altKey && !hasLineBetweenNodes;
-                        const shouldCreateArrow = e.altKey && hasLineBetweenNodes && !hasArrowInDirection;
+                        const shouldCreateArrow = e.shiftKey && !hasArrowInDirection;
+                        const shouldCreateLine = !e.shiftKey && !hasLineBetweenNodes;
 
                         if (shouldCreateLine || shouldCreateArrow) {
                             const draggedCenter = getNodeCenter(draggedNode);
@@ -1023,10 +1056,12 @@ export default function Canvas() {
                             } as any);
                         }
 
-                        updateNode(dragRef.current.nodeId, {
-                            x: dragRef.current.initialX,
-                            y: dragRef.current.initialY,
-                        });
+                        if (shouldCreateLine || shouldCreateArrow) {
+                            updateNode(dragRef.current.nodeId, {
+                                x: dragRef.current.initialX,
+                                y: dragRef.current.initialY,
+                            });
+                        }
                     }
                 }
                 dragRef.current = null;
@@ -1233,7 +1268,7 @@ export default function Canvas() {
                                 fontSize: 14,
                                 fontFamily: "JetBrains Mono",
                                 fontWeight: "normal",
-                                textColor: "#0f172a",
+                                textColor: "#E2E8F0",
                                 textAlign: "left",
                                 verticalAlign: "top",
                                 width: TEXT_BOX_DEFAULT_WIDTH,
@@ -1247,7 +1282,7 @@ export default function Canvas() {
                             setEditingFontFamily((newText as any).fontFamily || "JetBrains Mono");
                             setEditingFontWeight((newText as any).fontWeight || "normal");
                             setEditingTextAlign((newText as any).textAlign || "left");
-                            setEditingTextColor((newText as any).textColor || "#0f172a");
+                            setEditingTextColor((newText as any).textColor || "#E2E8F0");
                             setToolMode('select');
                             break;
                         case 'box':
@@ -1485,6 +1520,9 @@ export default function Canvas() {
                     } else if (node.type === 'TEXT') {
                         const textLayout = getTextLayout(node);
                         const hasBackgroundColor = !!node.backgroundColor && node.backgroundColor !== 'transparent';
+                        const hasBackground = node.backgroundColor && node.backgroundColor !== 'transparent';
+                        const dynamicTextColor = hasBackground ? '#000000' : '#E2E8F0';
+                        const finalTextColor = (node as any).textColor || dynamicTextColor;
                         return (
                             <div
                                 key={node.id}
@@ -1522,7 +1560,7 @@ export default function Canvas() {
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 fontWeight: editingFontWeight,
-                                                color: editingTextColor || "#E2E8F0",
+                                                color: finalTextColor,
                                                 textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
                                                 letterSpacing: "inherit",
@@ -1556,7 +1594,7 @@ export default function Canvas() {
                                                 fontSize: `${editingFontSize * zoom}px`,
                                                 fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
                                                 fontWeight: editingFontWeight,
-                                                color: editingTextColor || "#E2E8F0",
+                                                color: finalTextColor,
                                                 textAlign: editingTextAlign,
                                                 lineHeight: "1.4",
                                                 letterSpacing: "inherit",
@@ -1570,7 +1608,7 @@ export default function Canvas() {
                                                 background: "rgba(0,0,0,0.5)",
                                                 border: "none",
                                                 outline: "none",
-                                                caretColor: "#E2E8F0",
+                                                caretColor: finalTextColor,
                                                 height: "100%",
                                                 width: "100%",
                                                 borderRadius: 0,
@@ -1593,9 +1631,7 @@ export default function Canvas() {
                                             fontSize: textLayout.renderedFontSize * zoom,
                                             fontFamily: FONT_FAMILY_MAP[(node as any).fontFamily || "JetBrains Mono"],
                                             fontWeight: (node as any).fontWeight || "normal",
-                                            color: ((node as any).backgroundColor === 'transparent' || !(node as any).backgroundColor)
-                                                ? "#E2E8F0"
-                                                : ((node as any).textColor || "#E2E8F0"),
+                                            color: finalTextColor,
                                             lineHeight: "1.4",
                                             boxSizing: "border-box",
                                             whiteSpace: "pre-wrap",
@@ -1866,6 +1902,9 @@ export default function Canvas() {
                         <div>Space + Drag to Pan</div>
                         <div>Mouse Wheel to Zoom</div>
                         <div>Middle Click to Pan</div>
+                        <div>Alt + Drag: Duplicate Node</div>
+                        <div>Cmd/Ctrl + Drag to Node: Link (Dashed)</div>
+                        <div>Shift + Drag to Node: Link (Arrow)</div>
                         <div>Double Click Text to Edit</div>
                         <div>Double Click Group to Enter</div>
                         {activeGroupId && <div>Esc / Empty Double Click to Exit Group</div>}

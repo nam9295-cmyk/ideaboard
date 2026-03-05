@@ -183,7 +183,7 @@ export default function Inspector() {
                                 <button
                                     key={color}
                                     type="button"
-                                    onClick={() => updateNode(selectedNode.id, { backgroundColor: color } as any)}
+                                    onClick={() => updateNode(selectedNode.id, { backgroundColor: color, textColor: '#000000' } as any)}
                                     className={`h-8 w-8 rounded-full border border-[#3B4252] ${((selectedNode as any).backgroundColor || 'transparent') === color ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181A20]' : ''}`}
                                     style={{ backgroundColor: color }}
                                     aria-label={`Set background color ${color}`}
@@ -198,7 +198,7 @@ export default function Inspector() {
                                     value={((selectedNode as any).backgroundColor && (selectedNode as any).backgroundColor !== 'transparent')
                                         ? (selectedNode as any).backgroundColor
                                         : '#E2E8F0'}
-                                    onChange={(e) => updateNode(selectedNode.id, { backgroundColor: e.target.value } as any)}
+                                    onChange={(e) => updateNode(selectedNode.id, { backgroundColor: e.target.value, textColor: '#000000' } as any)}
                                     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                                 />
                                 <div
@@ -219,7 +219,7 @@ export default function Inspector() {
                                 onChange={(e) => {
                                     const value = e.target.value.toUpperCase();
                                     if (/^#[0-9A-F]{6}$/.test(value)) {
-                                        updateNode(selectedNode.id, { backgroundColor: value } as any);
+                                        updateNode(selectedNode.id, { backgroundColor: value, textColor: '#000000' } as any);
                                     }
                                 }}
                                 className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]"
@@ -284,7 +284,7 @@ export default function Inspector() {
                                         key={color}
                                         type="button"
                                         onClick={() => updateNode(selectedNode.id, { textColor: color } as any)}
-                                        className={`h-8 w-8 rounded-full border border-[#3B4252] ${(((selectedNode as any).textColor || "#0f172a").toUpperCase() === color) ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181A20]" : ""}`}
+                                        className={`h-8 w-8 rounded-full border border-[#3B4252] ${(((selectedNode as any).textColor || "#E2E8F0").toUpperCase() === color) ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181A20]" : ""}`}
                                         style={{ backgroundColor: color }}
                                         aria-label={`Set text color ${color}`}
                                     />
