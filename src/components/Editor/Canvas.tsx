@@ -9,7 +9,7 @@ import DimOverlay from "./DimOverlay";
 import { CanvasNode } from "@/types";
 
 export default function Canvas() {
-    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
+    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, addNodes, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
     const {
         zoom,
         pan,
@@ -447,6 +447,11 @@ export default function Canvas() {
         e.stopPropagation();
         if (node.locked) return;
         if (node.type === 'TEXT') {
+            if (activeGroupId && node.groupId === activeGroupId) {
+                // In group edit mode, keep double-click for selection/move workflow.
+                selectNode(node.id);
+                return;
+            }
             if (!node.fontSize) {
                 updateNode(node.id, { fontSize: 14 }, true);
             }
@@ -545,6 +550,80 @@ export default function Canvas() {
         }
 
         if (e.altKey) {
+            if (targetNode.type === "GROUP") {
+                const subtree: CanvasNode[] = [];
+                const queue: string[] = [targetNode.id];
+                const visited = new Set<string>();
+
+                while (queue.length > 0) {
+                    const currentId = queue.shift()!;
+                    if (visited.has(currentId)) continue;
+                    visited.add(currentId);
+
+                    const currentNode = nodes.find((n) => n.id === currentId);
+                    if (!currentNode) continue;
+                    subtree.push(currentNode);
+
+                    const children = nodes.filter((n) => n.groupId === currentId);
+                    for (const child of children) queue.push(child.id);
+                }
+
+                const idMap = new Map<string, string>(
+                    subtree.map((n) => [n.id, crypto.randomUUID()])
+                );
+
+                const clonedSubtree = subtree.map((n) => {
+                    const clone = (typeof structuredClone === "function"
+                        ? structuredClone(n)
+                        : JSON.parse(JSON.stringify(n))) as any;
+                    clone.id = idMap.get(n.id);
+                    if (clone.groupId && idMap.has(clone.groupId)) {
+                        clone.groupId = idMap.get(clone.groupId);
+                    }
+                    if (clone.startNodeId && idMap.has(clone.startNodeId)) {
+                        clone.startNodeId = idMap.get(clone.startNodeId);
+                    }
+                    if (clone.endNodeId && idMap.has(clone.endNodeId)) {
+                        clone.endNodeId = idMap.get(clone.endNodeId);
+                    }
+                    return clone as CanvasNode;
+                });
+
+                const clonedRootId = idMap.get(targetNode.id)!;
+                const clonedRoot = clonedSubtree.find((n) => n.id === clonedRootId)!;
+                const clonedChildrenPos = clonedSubtree
+                    .filter((n) => n.groupId === clonedRootId)
+                    .map((c) => ({
+                        id: c.id,
+                        x: c.x,
+                        y: c.y,
+                        endX: (c as any).endX,
+                        endY: (c as any).endY,
+                    }));
+
+                addNodes(clonedSubtree as any);
+                selectNode(clonedRoot.id);
+
+                dragRef.current = {
+                    nodeId: clonedRoot.id,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    initialX: clonedRoot.x,
+                    initialY: clonedRoot.y,
+                    nodesInitialPos: [
+                        {
+                            id: clonedRoot.id,
+                            x: clonedRoot.x,
+                            y: clonedRoot.y,
+                            endX: (clonedRoot as any).endX,
+                            endY: (clonedRoot as any).endY,
+                        },
+                        ...clonedChildrenPos,
+                    ],
+                };
+                return;
+            }
+
             const clonedNode = {
                 ...(typeof structuredClone === "function"
                     ? structuredClone(targetNode)
@@ -894,7 +973,7 @@ export default function Canvas() {
                     effectiveDeltaY = snappedMainY - mainNodeInitial.y;
                 }
 
-                const updates = nodesInitialPos.map(ip => ({
+                const updates: { id: string; changes: Partial<CanvasNode> }[] = nodesInitialPos.map(ip => ({
                     id: ip.id,
                     changes: {
                         x: ip.x + effectiveDeltaX,
@@ -903,8 +982,65 @@ export default function Canvas() {
                         ...(ip.endY !== undefined ? { endY: ip.endY + effectiveDeltaY } : {})
                     }
                 }));
+                const draggedNode = nodes.find((n) => n.id === dragRef.current?.nodeId);
+                const parentGroupId = draggedNode?.groupId;
+                const nextUpdates: { id: string; changes: Partial<CanvasNode> }[] = [...updates];
 
-                updateMultipleNodes(updates, true);
+                if (parentGroupId) {
+                    const PADDING = 30;
+                    const updatesMap = new Map(
+                        updates.map((u) => [u.id, u.changes] as const)
+                    );
+
+                    const groupChildren = nodes.filter(
+                        (n) => n.groupId === parentGroupId && n.id !== parentGroupId
+                    );
+
+                    let minX = Infinity;
+                    let minY = Infinity;
+                    let maxX = -Infinity;
+                    let maxY = -Infinity;
+
+                    for (const child of groupChildren) {
+                        const childBounds = getNodeBounds(child);
+                        const override = updatesMap.get(child.id);
+                        const overrideAny = override as any;
+                        const nextX = typeof override?.x === "number" ? override.x : childBounds.x;
+                        const nextY = typeof override?.y === "number" ? override.y : childBounds.y;
+                        const nextEndX = typeof overrideAny?.endX === "number" ? overrideAny.endX : (child as any).endX;
+                        const nextEndY = typeof overrideAny?.endY === "number" ? overrideAny.endY : (child as any).endY;
+
+                        if (child.type === "LINE" || child.type === "ARROW") {
+                            const lineMinX = Math.min(nextX, nextEndX ?? nextX);
+                            const lineMinY = Math.min(nextY, nextEndY ?? nextY);
+                            const lineMaxX = Math.max(nextX, nextEndX ?? nextX);
+                            const lineMaxY = Math.max(nextY, nextEndY ?? nextY);
+                            minX = Math.min(minX, lineMinX);
+                            minY = Math.min(minY, lineMinY);
+                            maxX = Math.max(maxX, lineMaxX);
+                            maxY = Math.max(maxY, lineMaxY);
+                        } else {
+                            minX = Math.min(minX, nextX);
+                            minY = Math.min(minY, nextY);
+                            maxX = Math.max(maxX, nextX + childBounds.width);
+                            maxY = Math.max(maxY, nextY + childBounds.height);
+                        }
+                    }
+
+                    if (Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)) {
+                        nextUpdates.push({
+                            id: parentGroupId,
+                            changes: {
+                                x: minX - PADDING,
+                                y: minY - PADDING,
+                                width: (maxX - minX) + PADDING * 2,
+                                height: Math.max(0, maxY - minY) + PADDING * 2,
+                            },
+                        });
+                    }
+                }
+
+                updateMultipleNodes(nextUpdates, true);
                 recordLastWorkPos(snappedMainX, snappedMainY);
 
                 const hudScreen = worldToScreen(
@@ -1013,6 +1149,8 @@ export default function Canvas() {
                         if (node.id === draggedNode.id) return false;
                         if (node.type === 'LINE' || node.type === 'ARROW') return false;
                         if (draggedNode.groupId && node.groupId && draggedNode.groupId === node.groupId) return false;
+                        if (draggedNode.type === 'GROUP' && node.groupId === draggedNode.id) return false;
+                        if (node.type === 'GROUP' && draggedNode.groupId === node.id) return false;
 
                         const targetBounds = getNodeBounds(node);
                         return (
@@ -1057,10 +1195,16 @@ export default function Canvas() {
                         }
 
                         if (shouldCreateLine || shouldCreateArrow) {
-                            updateNode(dragRef.current.nodeId, {
-                                x: dragRef.current.initialX,
-                                y: dragRef.current.initialY,
-                            });
+                            const restoreUpdates = dragRef.current.nodesInitialPos.map((ip) => ({
+                                id: ip.id,
+                                changes: {
+                                    x: ip.x,
+                                    y: ip.y,
+                                    ...(ip.endX !== undefined ? { endX: ip.endX } : {}),
+                                    ...(ip.endY !== undefined ? { endY: ip.endY } : {}),
+                                } as Partial<CanvasNode>,
+                            }));
+                            updateMultipleNodes(restoreUpdates, true);
                         }
                     }
                 }
@@ -1204,6 +1348,8 @@ export default function Canvas() {
             container.removeEventListener("wheel", handleWheel);
         };
     }, [setZoom, setPan]);
+
+    const existingGroupIds = new Set(nodes.filter((n) => n.type === 'GROUP').map((n) => n.id));
 
     return (
         <div
@@ -1462,13 +1608,11 @@ export default function Canvas() {
                         if (shouldHideGroupOutline && !isSelected) {
                             return null;
                         }
+                        const isGroupEditing = activeGroupId === node.id;
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute border-2 border-dashed ${isSelected
-                                    ? "border-blue-500 ring-2 ring-blue-500/20 z-20"
-                                    : "z-0"
-                                    }`}
+                                className={`absolute ${isSelected ? "ring-2 ring-blue-500/30" : ""}`}
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
@@ -1477,18 +1621,17 @@ export default function Canvas() {
                                     pointerEvents,
                                     opacity,
                                     borderRadius: "0px",
-                                    borderColor: isSelected ? undefined : "rgba(226, 232, 240, 0.5)",
+                                    backgroundColor: node.backgroundColor || "rgba(255, 255, 255, 0.03)",
+                                    border: `2px solid ${isGroupEditing ? "#3B82F6" : "#E2E8F0"}`,
+                                    boxShadow: "4px 4px 0px 0px #000",
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
-                                onDoubleClick={(e) => handleDoubleClick(e, node)}
-                            >
-                                <div
-                                    className={`absolute -top-6 left-0 w-max whitespace-nowrap px-1.5 py-0.5 text-[11px] font-medium select-none ${isSelected ? "bg-blue-500 text-white" : "bg-[#3F3F46] text-gray-200"}`}
-                                    style={{ borderRadius: "0px" }}
-                                >
-                                    {node.name || "Group"}
-                                </div>
-                            </div>
+                                onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveGroupId(node.id);
+                                    setSelection([]);
+                                }}
+                            />
                         );
                     } else if (node.type === 'FRAME') {
                         return (
@@ -1519,14 +1662,25 @@ export default function Canvas() {
                         );
                     } else if (node.type === 'TEXT') {
                         const textLayout = getTextLayout(node);
-                        const hasBackgroundColor = !!node.backgroundColor && node.backgroundColor !== 'transparent';
-                        const hasBackground = node.backgroundColor && node.backgroundColor !== 'transparent';
+                        const isInGroup = !!node.groupId && existingGroupIds.has(node.groupId);
+                        const parentGroup = isInGroup
+                            ? nodes.find((n): n is Extract<CanvasNode, { type: 'GROUP' }> => n.type === 'GROUP' && n.id === node.groupId)
+                            : undefined;
+                        const parentGroupHasBackground = !!parentGroup?.backgroundColor && parentGroup.backgroundColor !== 'transparent';
+                        const resolvedBackgroundColor = isInGroup ? 'transparent' : (node.backgroundColor || 'transparent');
+                        const hasBackgroundColor = resolvedBackgroundColor !== 'transparent';
+                        const hasBackground = resolvedBackgroundColor !== 'transparent';
                         const dynamicTextColor = hasBackground ? '#000000' : '#E2E8F0';
-                        const finalTextColor = (node as any).textColor || dynamicTextColor;
+                        const finalTextColor = isInGroup
+                            ? (parentGroupHasBackground ? '#000000' : '#E2E8F0')
+                            : ((node as any).textColor || dynamicTextColor);
+                        const selectionHalo = isSelected && !isEditing ? "0 0 0 2px rgba(59, 130, 246, 0.95)" : "";
+                        const neoShadow = hasBackgroundColor ? "4px 4px 0px 0px #000" : "";
+                        const combinedBoxShadow = [selectionHalo, neoShadow].filter(Boolean).join(", ") || "none";
                         return (
                             <div
                                 key={node.id}
-                                className={`absolute ${isSelected && !isEditing ? "ring-1 ring-blue-500" : ""}`}
+                                className="absolute"
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
@@ -1536,10 +1690,10 @@ export default function Canvas() {
                                     pointerEvents,
                                     opacity,
                                     overflow: "hidden",
-                                    backgroundColor: node.backgroundColor || 'transparent',
-                                    padding: node.backgroundColor ? `${4 * zoom}px ${8 * zoom}px` : '0',
+                                    backgroundColor: resolvedBackgroundColor,
+                                    padding: resolvedBackgroundColor !== 'transparent' ? `${4 * zoom}px ${8 * zoom}px` : '0',
                                     border: hasBackgroundColor ? '2px solid #E2E8F0' : 'none',
-                                    boxShadow: hasBackgroundColor ? '4px 4px 0px 0px #000' : 'none',
+                                    boxShadow: combinedBoxShadow,
                                     borderRadius: '0px',
                                 }}
                                 onPointerDown={(e) => startNodeDrag(e, node)}
@@ -1675,7 +1829,8 @@ export default function Canvas() {
                                                     ...handle.style,
                                                     cursor: handle.cursor,
                                                     pointerEvents: "auto",
-                                                    background: "transparent",
+                                                    background: "rgba(96, 165, 250, 0.55)",
+                                                    borderRadius: 2,
                                                 }}
                                                 onPointerDown={(e) => startTextResize(e, node, handle.key as "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw")}
                                             />

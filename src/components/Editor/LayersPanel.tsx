@@ -248,6 +248,18 @@ export default function LayersPanel() {
                     )}
 
                     <div className="flex items-center space-x-2 ml-2">
+                        {isGroup && isSelected && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    ungroupNodes();
+                                }}
+                                title="Ungroup Group"
+                                className="text-[10px] px-1.5 py-0.5 bg-[#3A1F24] text-red-300 rounded hover:bg-[#4A252C] transition-colors"
+                            >
+                                해제
+                            </button>
+                        )}
                         <button onClick={(e) => toggleLock(node, e)} title={isLocked ? "Unlock" : "Lock"} className="text-[#64748B] hover:text-[#E2E8F0]">
                             {isLocked ? <Lock size={12} /> : <Unlock size={12} className="opacity-0 group-hover:opacity-100" />}
                         </button>

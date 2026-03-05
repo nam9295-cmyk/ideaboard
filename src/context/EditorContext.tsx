@@ -137,15 +137,27 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     const addNode = (node: CanvasNode) => {
         pushSnapshot();
-        const nodeWithGroup = { ...node, groupId: node.groupId || activeGroupId || undefined };
-        setNodes((prev) => [...prev, nodeWithGroup]);
+        setNodes((prev) => {
+            const hasActiveGroup = !!activeGroupId && prev.some((n) => n.id === activeGroupId && n.type === "GROUP");
+            const nodeWithGroup = {
+                ...node,
+                groupId: node.groupId || (hasActiveGroup ? activeGroupId : undefined) || undefined,
+            };
+            return [...prev, nodeWithGroup];
+        });
         setSelectedNodeIds([node.id]);
     };
 
     const addNodes = (newNodes: CanvasNode[]) => {
         pushSnapshot();
-        const nodesWithGroup = newNodes.map(n => ({ ...n, groupId: n.groupId || activeGroupId || undefined }));
-        setNodes((prev) => [...prev, ...nodesWithGroup]);
+        setNodes((prev) => {
+            const hasActiveGroup = !!activeGroupId && prev.some((n) => n.id === activeGroupId && n.type === "GROUP");
+            const nodesWithGroup = newNodes.map((n) => ({
+                ...n,
+                groupId: n.groupId || (hasActiveGroup ? activeGroupId : undefined) || undefined,
+            }));
+            return [...prev, ...nodesWithGroup];
+        });
         setSelectedNodeIds(newNodes.map(n => n.id));
     };
 
@@ -187,6 +199,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setNodes((prev) => {
             const selected = prev.filter(n => selectedNodeIds.includes(n.id));
             if (selected.length < 2) return prev;
+            const PADDING = 30;
 
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             selected.forEach(n => {
@@ -209,15 +222,15 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 id: groupId,
                 type: 'GROUP',
                 name: 'Group',
-                x: minX,
-                y: minY,
-                width: maxX - minX,
-                height: Math.max(0, maxY - minY),
+                x: minX - PADDING,
+                y: minY - PADDING,
+                width: (maxX - minX) + (PADDING * 2),
+                height: Math.max(0, maxY - minY) + (PADDING * 2),
                 groupId: parentGroupId
             } as CanvasNode;
 
             const next = prev.map(n => selectedNodeIds.includes(n.id) ? { ...n, groupId } : n);
-            return [...next, newGroup];
+            return [newGroup, ...next];
         });
 
         setSelectedNodeIds([groupId]);
