@@ -78,7 +78,6 @@ export default function Canvas() {
     const [editingTextAlign, setEditingTextAlign] = useState<"left" | "center" | "right">("left");
     const [editingTextColor, setEditingTextColor] = useState("#E2E8F0");
     const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-    const editingTextMirrorRef = useRef<HTMLDivElement | null>(null);
     const textMeasureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [editingTextareaWidth, setEditingTextareaWidth] = useState(60);
     const [editingTextareaHeight, setEditingTextareaHeight] = useState(28);
@@ -96,7 +95,6 @@ export default function Canvas() {
     } | null>(null);
     const EDITING_PADDING_X = 8;
     const EDITING_PADDING_Y = 6;
-    const EDITING_MAX_WIDTH = 520;
     const SPAWN_GRID_SIZE = 10;
     const TEXT_BOX_DEFAULT_WIDTH = 140;
     const TEXT_BOX_DEFAULT_HEIGHT = 40;
@@ -169,6 +167,22 @@ export default function Canvas() {
             width: Math.max(width ?? 0, metrics.width + TEXT_HIT_PADDING_X),
             height: Math.max(height ?? 0, metrics.height + TEXT_HIT_PADDING_Y),
         };
+    };
+    const syncEditingTextareaSize = () => {
+        const textarea = editingTextareaRef.current;
+        if (!textarea) return;
+
+        const minWidth = Math.max(60, Math.ceil(TEXT_BOX_MIN_WIDTH * zoom));
+        const minHeight = Math.max(28, Math.ceil(TEXT_BOX_MIN_HEIGHT * zoom));
+
+        textarea.style.width = "0px";
+        textarea.style.height = "0px";
+
+        const nextWidth = Math.max(minWidth, Math.ceil(textarea.scrollWidth));
+        const nextHeight = Math.max(minHeight, Math.ceil(textarea.scrollHeight));
+
+        setEditingTextareaWidth(nextWidth);
+        setEditingTextareaHeight(nextHeight);
     };
     const getNodeBounds = (node: CanvasNode): { x: number; y: number; width: number; height: number } => {
         if (node.type === 'TEXT') {
@@ -373,6 +387,7 @@ export default function Canvas() {
         textarea.focus();
         const end = textarea.value.length;
         textarea.setSelectionRange(end, end);
+        syncEditingTextareaSize();
     }, [editingNodeId]);
 
     useEffect(() => {
@@ -431,18 +446,8 @@ export default function Canvas() {
 
     useEffect(() => {
         if (!editingNodeId) return;
-        const mirror = editingTextMirrorRef.current;
-        if (!mirror) return;
-
-        mirror.style.width = "auto";
-        const measuredWidth = mirror.scrollWidth;
-        const nextWidth = Math.min(EDITING_MAX_WIDTH, Math.max(60, Math.ceil(measuredWidth + EDITING_PADDING_X * 2)));
-        mirror.style.width = `${nextWidth}px`;
-        const measuredHeight = mirror.scrollHeight;
-        const nextHeight = Math.min(240, Math.max(28, Math.ceil(measuredHeight + EDITING_PADDING_Y * 2)));
-        setEditingTextareaWidth(nextWidth);
-        setEditingTextareaHeight(nextHeight);
-    }, [editingNodeId, editingText, editingFontSize, zoom, EDITING_MAX_WIDTH, EDITING_PADDING_X, EDITING_PADDING_Y]);
+        syncEditingTextareaSize();
+    }, [editingNodeId, editingText, editingFontSize, editingFontFamily, editingFontWeight, zoom]);
 
     // Start Editing or Enter Group
     const handleDoubleClick = (e: React.MouseEvent, node: CanvasNode) => {
@@ -699,13 +704,20 @@ export default function Canvas() {
             } else {
                 const existingNode = nodes.find((n) => n.id === editingNodeId);
                 if (existingNode?.type === 'TEXT') {
+                    const textarea = editingTextareaRef.current;
+                    const measuredWidth = textarea
+                        ? Math.ceil(textarea.scrollWidth / zoom)
+                        : undefined;
+                    const measuredHeight = textarea
+                        ? Math.ceil(textarea.scrollHeight / zoom)
+                        : undefined;
                     const nextSize = getAutoSizedTextDimensions(
                         editingText,
                         editingFontSize,
                         editingFontFamily,
                         editingFontWeight,
-                        existingNode.width,
-                        existingNode.height
+                        measuredWidth,
+                        measuredHeight
                     );
                     updateNode(editingNodeId, {
                         text: editingText,
@@ -1727,12 +1739,12 @@ export default function Canvas() {
                                 style={{
                                     left: screen.x,
                                     top: screen.y,
-                                    width: textLayout.boxWidth * zoom,
-                                    height: textLayout.boxHeight * zoom,
+                                    width: isEditing ? Math.max(textLayout.boxWidth * zoom, editingTextareaWidth) : textLayout.boxWidth * zoom,
+                                    height: isEditing ? Math.max(textLayout.boxHeight * zoom, editingTextareaHeight) : textLayout.boxHeight * zoom,
                                     zIndex: isEditing ? 100 : (isSelected ? 10 : 1),
                                     pointerEvents,
                                     opacity,
-                                    overflow: "hidden",
+                                    overflow: "visible",
                                     backgroundColor: resolvedBackgroundColor,
                                     padding: resolvedBackgroundColor !== 'transparent' ? `${4 * zoom}px ${8 * zoom}px` : '0',
                                     border: hasBackgroundColor ? '2px solid #E2E8F0' : 'none',
@@ -1743,83 +1755,55 @@ export default function Canvas() {
                                 onDoubleClick={(e) => handleDoubleClick(e, node)}
                             >
                                 {isEditing ? (
-                                    <>
-                                        <div
-                                            ref={editingTextMirrorRef}
-                                            aria-hidden="true"
-                                            style={{
-                                                position: "absolute",
-                                                visibility: "hidden",
-                                                pointerEvents: "none",
-                                                whiteSpace: "pre-wrap",
-                                                overflowWrap: "anywhere",
-                                                wordBreak: "break-word",
-                                                fontSize: `${editingFontSize * zoom}px`,
-                                                fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
-                                                fontWeight: editingFontWeight,
-                                                color: finalTextColor,
-                                                textAlign: editingTextAlign,
-                                                lineHeight: "1.4",
-                                                letterSpacing: "inherit",
-                                                padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
-                                                margin: 0,
-                                                width: "100%",
-                                                maxWidth: "100%",
-                                                boxSizing: "border-box",
-                                            }}
-                                        >
-                                            {editingText || " "}
-                                        </div>
-                                        <textarea
-                                            ref={editingTextareaRef}
-                                            value={editingText}
-                                            onChange={(e) => setEditingText(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                e.stopPropagation();
-                                                if (e.key === "Escape") {
-                                                    const node = nodes.find(n => n.id === editingNodeId);
-                                                    if (node && node.type === 'TEXT' && !node.text) {
-                                                        deleteNode(editingNodeId);
-                                                    }
-                                                    setEditingNodeId(null);
-                                                    setToolMode('select');
+                                    <textarea
+                                        ref={editingTextareaRef}
+                                        value={editingText}
+                                        onChange={(e) => {
+                                            setEditingText(e.target.value);
+                                            syncEditingTextareaSize();
+                                        }}
+                                        onInput={syncEditingTextareaSize}
+                                        onKeyDown={(e) => {
+                                            e.stopPropagation();
+                                            if (e.key === "Escape") {
+                                                const node = nodes.find(n => n.id === editingNodeId);
+                                                if (node && node.type === 'TEXT' && !node.text) {
+                                                    deleteNode(editingNodeId);
                                                 }
-                                            }}
-                                            onBlur={saveText}
-                                            className="outline-none bg-transparent resize-none overflow-hidden m-0 border-none block"
-                                            style={{
-                                                fontSize: `${editingFontSize * zoom}px`,
-                                                fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
-                                                fontWeight: editingFontWeight,
-                                                color: finalTextColor,
-                                                textAlign: editingTextAlign,
-                                                lineHeight: "1.4",
-                                                letterSpacing: "inherit",
-                                                position: "absolute",
-                                                inset: 0,
-                                                minWidth: "100%",
-                                                minHeight: "100%",
-                                                maxWidth: "100%",
-                                                maxHeight: "100%",
-                                                padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
-                                                background: "rgba(0,0,0,0.5)",
-                                                border: "none",
-                                                outline: "none",
-                                                caretColor: finalTextColor,
-                                                height: "100%",
-                                                width: "100%",
-                                                borderRadius: 0,
-                                                boxSizing: "border-box",
-                                                whiteSpace: "pre-wrap",
-                                                overflowWrap: "anywhere",
-                                                wordBreak: "break-word",
-                                                overflow: "hidden",
-                                                resize: "none",
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                            onMouseDown={(e) => e.stopPropagation()}
-                                        />
-                                    </>
+                                                setEditingNodeId(null);
+                                                setToolMode('select');
+                                            }
+                                        }}
+                                        onBlur={saveText}
+                                        className="outline-none bg-transparent resize-none overflow-hidden m-0 border-none block"
+                                        style={{
+                                            fontSize: `${editingFontSize * zoom}px`,
+                                            fontFamily: FONT_FAMILY_MAP[editingFontFamily] || FONT_FAMILY_MAP["JetBrains Mono"],
+                                            fontWeight: editingFontWeight,
+                                            color: finalTextColor,
+                                            textAlign: editingTextAlign,
+                                            lineHeight: "1.4",
+                                            letterSpacing: "inherit",
+                                            padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
+                                            background: "rgba(0,0,0,0.5)",
+                                            border: "none",
+                                            outline: "none",
+                                            caretColor: finalTextColor,
+                                            height: editingTextareaHeight,
+                                            width: editingTextareaWidth,
+                                            minHeight: editingTextareaHeight,
+                                            minWidth: editingTextareaWidth,
+                                            borderRadius: 0,
+                                            boxSizing: "border-box",
+                                            whiteSpace: "pre",
+                                            overflowWrap: "normal",
+                                            wordBreak: "normal",
+                                            overflow: "hidden",
+                                            resize: "none",
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                    />
                                 ) : (
                                     <div
                                         className="h-full w-full select-none text-slate-900 cursor-default flex"
@@ -1831,10 +1815,13 @@ export default function Canvas() {
                                             color: finalTextColor,
                                             lineHeight: "1.4",
                                             boxSizing: "border-box",
+                                            width: "100%",
+                                            minWidth: "100%",
+                                            maxWidth: "100%",
                                             whiteSpace: "pre-wrap",
                                             overflowWrap: "anywhere",
                                             wordBreak: "break-word",
-                                            overflow: "hidden",
+                                            overflow: "visible",
                                             textAlign: (node as any).textAlign || "left",
                                             justifyContent:
                                                 ((node as any).textAlign || "left") === "center"
