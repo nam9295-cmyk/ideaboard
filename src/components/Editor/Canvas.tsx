@@ -9,7 +9,7 @@ import DimOverlay from "./DimOverlay";
 import { CanvasNode } from "@/types";
 
 export default function Canvas() {
-    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, addNodes, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
+    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, addNodes, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId, saveToCloud } = useEditor();
     const {
         zoom,
         pan,
@@ -48,6 +48,8 @@ export default function Canvas() {
     const [showGrid, setShowGrid] = useState(true);
     const [showMajorGrid, setShowMajorGrid] = useState(true);
     const [isHudCollapsed, setIsHudCollapsed] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
+    const [shareMessage, setShareMessage] = useState<string | null>(null);
     const SNAP_GRID_SIZE = 10;
     const SNAP_THRESHOLD = 4;
 
@@ -1351,6 +1353,23 @@ export default function Canvas() {
 
     const existingGroupIds = new Set(nodes.filter((n) => n.type === 'GROUP').map((n) => n.id));
 
+    const handleShareToCloud = async () => {
+        setIsSharing(true);
+        setShareMessage(null);
+        try {
+            const boardId = await saveToCloud();
+            setShareMessage(`Copied link (${boardId})`);
+        } catch (error) {
+            console.error("Failed to save board to cloud", error);
+            setShareMessage("Cloud save failed");
+        } finally {
+            setIsSharing(false);
+            window.setTimeout(() => {
+                setShareMessage(null);
+            }, 2500);
+        }
+    };
+
     return (
         <div
             ref={containerRef}
@@ -1493,6 +1512,26 @@ export default function Canvas() {
             }}
         >
             <DimOverlay />
+
+            <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-2">
+                <button
+                    type="button"
+                    onClick={handleShareToCloud}
+                    disabled={isSharing}
+                    className="pointer-events-auto border-2 border-[#E2E8F0] bg-[#232734] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#E2E8F0] shadow-[4px_4px_0px_0px_#000] transition-colors hover:bg-[#2D3340] disabled:cursor-wait disabled:opacity-70"
+                    style={{ borderRadius: 0 }}
+                >
+                    {isSharing ? "Saving..." : "Share to Cloud"}
+                </button>
+                {shareMessage && (
+                    <div
+                        className="border border-[#3B4252] bg-[#181A20]/95 px-3 py-1 text-[11px] text-[#E2E8F0] shadow-[4px_4px_0px_0px_#000]"
+                        style={{ borderRadius: 0 }}
+                    >
+                        {shareMessage}
+                    </div>
+                )}
+            </div>
 
             {showGrid && (
                 <svg className="absolute inset-0 pointer-events-none z-0" width="100%" height="100%">

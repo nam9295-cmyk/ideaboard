@@ -38,6 +38,7 @@ interface EditorState {
     setPaintLayerVisible: (visible: boolean) => void;
     addPaint: (key: string, skipHistory?: boolean) => void;
     removePaint: (key: string, skipHistory?: boolean) => void;
+    saveToCloud: () => Promise<string>;
 
     // History
     history: { past: Snapshot[]; future: Snapshot[] };
@@ -70,6 +71,35 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     // History
     const [history, setHistory] = useState<{ past: Snapshot[]; future: Snapshot[] }>({ past: [], future: [] });
+
+    const getFirestoreClient = async () => {
+        const [{ db }, firestore] = await Promise.all([
+            import("@/lib/firebase"),
+            import("firebase/firestore/lite"),
+        ]);
+
+        return {
+            db,
+            doc: firestore.doc,
+            getDoc: firestore.getDoc,
+            setDoc: firestore.setDoc,
+        };
+    };
+
+    const loadCloudBoard = async (boardId: string) => {
+        const { db, doc, getDoc } = await getFirestoreClient();
+        const snapshot = await getDoc(doc(db, "ideaboards", boardId));
+        if (!snapshot.exists()) return false;
+
+        const data = snapshot.data();
+        const nextNodes = Array.isArray(data.nodes) ? data.nodes as CanvasNode[] : [];
+        setNodes(nextNodes);
+        setSelectedNodeIds([]);
+        setActiveGroupId(null);
+        setPaintLayer(new Set());
+        setHistory({ past: [], future: [] });
+        return true;
+    };
 
     // Helper to record current state to history
     const pushSnapshot = () => {
@@ -122,10 +152,39 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     // Load from storage on mount
     useEffect(() => {
-        const loaded = loadFrames();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        setNodes(loaded);
-        setIsLoaded(true);
+        let isCancelled = false;
+
+        const loadInitialState = async () => {
+            const boardId = typeof window !== "undefined"
+                ? new URLSearchParams(window.location.search).get("id")
+                : null;
+
+            if (boardId) {
+                try {
+                    const loadedFromCloud = await loadCloudBoard(boardId);
+                    if (loadedFromCloud || isCancelled) {
+                        if (!isCancelled) {
+                            setIsLoaded(true);
+                        }
+                        return;
+                    }
+                } catch (error) {
+                    console.error("Failed to load cloud board", error);
+                }
+            }
+
+            const loaded = loadFrames();
+            if (!isCancelled) {
+                setNodes(loaded);
+                setIsLoaded(true);
+            }
+        };
+
+        loadInitialState();
+
+        return () => {
+            isCancelled = true;
+        };
     }, []);
 
     // Save to storage whenever nodes change (but only after initial load)
@@ -328,6 +387,29 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         });
     };
 
+    const saveToCloud = async () => {
+        const { db, doc, setDoc } = await getFirestoreClient();
+        const generatedId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+        await setDoc(doc(db, "ideaboards", generatedId), {
+            nodes,
+            updatedAt: Date.now(),
+        });
+
+        if (typeof window !== "undefined") {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("id", generatedId);
+            window.history.pushState({}, "", nextUrl.toString());
+
+            try {
+                await navigator.clipboard.writeText(nextUrl.toString());
+            } catch (error) {
+                console.error("Failed to copy cloud URL", error);
+            }
+        }
+
+        return generatedId;
+    };
+
     return (
         <EditorContext.Provider
             value={{
@@ -362,6 +444,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 setPaintLayerVisible,
                 addPaint,
                 removePaint,
+                saveToCloud,
                 history,
                 pushSnapshot,
                 undo,
