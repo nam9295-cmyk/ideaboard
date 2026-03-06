@@ -1766,12 +1766,8 @@ export default function Canvas() {
                                         onKeyDown={(e) => {
                                             e.stopPropagation();
                                             if (e.key === "Escape") {
-                                                const node = nodes.find(n => n.id === editingNodeId);
-                                                if (node && node.type === 'TEXT' && !node.text) {
-                                                    deleteNode(editingNodeId);
-                                                }
-                                                setEditingNodeId(null);
-                                                setToolMode('select');
+                                                e.preventDefault();
+                                                saveText();
                                             }
                                         }}
                                         onBlur={saveText}
