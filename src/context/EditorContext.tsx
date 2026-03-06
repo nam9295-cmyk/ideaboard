@@ -7,6 +7,8 @@ import { loadFrames, saveFrames } from "@/utils/storage";
 interface EditorState {
     nodes: CanvasNode[];
     selectedNodeIds: string[];
+    currentCloudBoardId: string | null;
+    currentCloudBoardTitle: string | null;
     zoom: number;
     pan: { x: number; y: number };
     setZoom: (zoom: number | ((prev: number) => number)) => void;
@@ -38,7 +40,8 @@ interface EditorState {
     setPaintLayerVisible: (visible: boolean) => void;
     addPaint: (key: string, skipHistory?: boolean) => void;
     removePaint: (key: string, skipHistory?: boolean) => void;
-    saveToCloud: () => Promise<string>;
+    saveToCloud: () => Promise<string | null>;
+    openCloudBoard: (id: string) => Promise<boolean>;
 
     // History
     history: { past: Snapshot[]; future: Snapshot[] };
@@ -59,6 +62,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const [pan, setPan] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
     const [nodes, setNodes] = useState<CanvasNode[]>([]);
     const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+    const [currentCloudBoardId, setCurrentCloudBoardId] = useState<string | null>(null);
+    const [currentCloudBoardTitle, setCurrentCloudBoardTitle] = useState<string | null>(null);
     const [toolMode, setToolMode] = useState<ToolMode>('select');
     const [dimOutsideFrames, setDimOutsideFrames] = useState(false);
     const [gridSize, setGridSize] = useState(10);
@@ -98,6 +103,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setActiveGroupId(null);
         setPaintLayer(new Set());
         setHistory({ past: [], future: [] });
+        setCurrentCloudBoardId(boardId);
+        setCurrentCloudBoardTitle(typeof data.title === "string" && data.title.trim() ? data.title : "Untitled");
         return true;
     };
 
@@ -176,6 +183,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             const loaded = loadFrames();
             if (!isCancelled) {
                 setNodes(loaded);
+                setCurrentCloudBoardId(null);
+                setCurrentCloudBoardTitle(null);
                 setIsLoaded(true);
             }
         };
@@ -387,17 +396,48 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         });
     };
 
-    const saveToCloud = async () => {
-        const { db, doc, setDoc } = await getFirestoreClient();
-        const generatedId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
-        await setDoc(doc(db, "ideaboards", generatedId), {
-            nodes,
-            updatedAt: Date.now(),
-        });
+    const openCloudBoard = async (id: string) => {
+        const loaded = await loadCloudBoard(id);
+        if (!loaded) return false;
 
         if (typeof window !== "undefined") {
             const nextUrl = new URL(window.location.href);
-            nextUrl.searchParams.set("id", generatedId);
+            nextUrl.searchParams.set("id", id);
+            window.history.pushState({}, "", nextUrl.toString());
+        }
+
+        return true;
+    };
+
+    const saveToCloud = async () => {
+        const { db, doc, setDoc } = await getFirestoreClient();
+        const nextId = currentCloudBoardId ?? crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+        let nextTitle = currentCloudBoardTitle;
+
+        if (!currentCloudBoardId) {
+            const providedTitle = typeof window !== "undefined"
+                ? window.prompt("프로젝트 이름을 입력하세요", currentCloudBoardTitle || "Untitled")
+                : "Untitled";
+
+            if (providedTitle === null) {
+                return null;
+            }
+
+            nextTitle = providedTitle.trim() || "Untitled";
+        }
+
+        await setDoc(doc(db, "ideaboards", nextId), {
+            nodes,
+            title: nextTitle || "Untitled",
+            updatedAt: new Date().toISOString(),
+        });
+
+        setCurrentCloudBoardId(nextId);
+        setCurrentCloudBoardTitle(nextTitle || "Untitled");
+
+        if (typeof window !== "undefined") {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("id", nextId);
             window.history.pushState({}, "", nextUrl.toString());
 
             try {
@@ -407,13 +447,15 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        return generatedId;
+        return nextId;
     };
 
     return (
         <EditorContext.Provider
             value={{
                 nodes,
+                currentCloudBoardId,
+                currentCloudBoardTitle,
                 zoom,
                 setZoom,
                 pan,
@@ -445,6 +487,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 addPaint,
                 removePaint,
                 saveToCloud,
+                openCloudBoard,
                 history,
                 pushSnapshot,
                 undo,

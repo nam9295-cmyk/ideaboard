@@ -1358,6 +1358,10 @@ export default function Canvas() {
         setShareMessage(null);
         try {
             const boardId = await saveToCloud();
+            if (!boardId) {
+                setShareMessage("Save cancelled");
+                return;
+            }
             setShareMessage(`Copied link (${boardId})`);
         } catch (error) {
             console.error("Failed to save board to cloud", error);
