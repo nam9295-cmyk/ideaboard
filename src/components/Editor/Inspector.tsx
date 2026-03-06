@@ -55,7 +55,7 @@ export default function Inspector() {
 
     if (!selectedNode && !isMultiple) {
         return (
-            <div className="w-72 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
+            <div className="w-60 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
                 <div className="p-4 border-b border-[#313543]">
                     <h3 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Properties</h3>
                 </div>
@@ -68,7 +68,7 @@ export default function Inspector() {
 
     if (isMultiple) {
         return (
-            <div className="w-72 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
+            <div className="w-60 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
                 <div className="p-4 border-b border-[#313543]">
                     <h3 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Properties</h3>
                 </div>
@@ -83,7 +83,7 @@ export default function Inspector() {
     if (!selectedNode) return null;
 
     return (
-        <div className="w-72 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
+        <div className="w-60 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
             <div className="p-4 border-b border-[#313543]">
                 <h3 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Properties</h3>
             </div>

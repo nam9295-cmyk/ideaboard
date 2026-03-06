@@ -9,7 +9,7 @@ import DimOverlay from "./DimOverlay";
 import { CanvasNode } from "@/types";
 
 export default function Canvas() {
-    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, addNodes, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId, saveToCloud } = useEditor();
+    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, addNodes, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
     const {
         zoom,
         pan,
@@ -47,9 +47,8 @@ export default function Canvas() {
     const [lastPointerScreenPos, setLastPointerScreenPos] = useState<{ x: number; y: number } | null>(null);
     const [showGrid, setShowGrid] = useState(true);
     const [showMajorGrid, setShowMajorGrid] = useState(true);
+    const [isDeepCanvasMode, setIsDeepCanvasMode] = useState(false);
     const [isHudCollapsed, setIsHudCollapsed] = useState(false);
-    const [isSharing, setIsSharing] = useState(false);
-    const [shareMessage, setShareMessage] = useState<string | null>(null);
     const SNAP_GRID_SIZE = 10;
     const SNAP_THRESHOLD = 4;
 
@@ -413,22 +412,27 @@ export default function Canvas() {
             try {
                 const storedShowGrid = localStorage.getItem("asmemo_show_grid");
                 const storedShowMajor = localStorage.getItem("asmemo_show_major_grid");
+                const storedDeepCanvasMode = localStorage.getItem("asmemo_deep_canvas_mode");
                 const nextShowGrid = storedShowGrid === null ? true : storedShowGrid === "true";
                 const nextShowMajor = storedShowMajor === null ? true : storedShowMajor === "true";
                 setShowGrid(nextShowGrid);
                 setShowMajorGrid(nextShowGrid ? nextShowMajor : false);
+                setIsDeepCanvasMode(storedDeepCanvasMode === "true");
             } catch {
                 setShowGrid(true);
                 setShowMajorGrid(true);
+                setIsDeepCanvasMode(false);
             }
         };
 
         readGridSettings();
         window.addEventListener("storage", readGridSettings);
         window.addEventListener("asmemo:grid-settings-changed", readGridSettings as EventListener);
+        window.addEventListener("asmemo:canvas-view-settings-changed", readGridSettings as EventListener);
         return () => {
             window.removeEventListener("storage", readGridSettings);
             window.removeEventListener("asmemo:grid-settings-changed", readGridSettings as EventListener);
+            window.removeEventListener("asmemo:canvas-view-settings-changed", readGridSettings as EventListener);
         };
     }, []);
 
@@ -1365,31 +1369,11 @@ export default function Canvas() {
 
     const existingGroupIds = new Set(nodes.filter((n) => n.type === 'GROUP').map((n) => n.id));
 
-    const handleShareToCloud = async () => {
-        setIsSharing(true);
-        setShareMessage(null);
-        try {
-            const boardId = await saveToCloud();
-            if (!boardId) {
-                setShareMessage("Save cancelled");
-                return;
-            }
-            setShareMessage(`Copied link (${boardId})`);
-        } catch (error) {
-            console.error("Failed to save board to cloud", error);
-            setShareMessage("Cloud save failed");
-        } finally {
-            setIsSharing(false);
-            window.setTimeout(() => {
-                setShareMessage(null);
-            }, 2500);
-        }
-    };
-
     return (
         <div
             ref={containerRef}
-            className={`absolute inset-0 overflow-hidden bg-[#22242B] ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
+            className={`absolute inset-0 overflow-hidden ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
+            style={{ backgroundColor: isDeepCanvasMode ? "#17191F" : "#22242B" }}
             onPointerMove={(e) => {
                 const container = containerRef.current;
                 if (!container) return;
@@ -1529,26 +1513,6 @@ export default function Canvas() {
         >
             <DimOverlay />
 
-            <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-2">
-                <button
-                    type="button"
-                    onClick={handleShareToCloud}
-                    disabled={isSharing}
-                    className="pointer-events-auto border-2 border-[#E2E8F0] bg-[#232734] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#E2E8F0] shadow-[4px_4px_0px_0px_#000] transition-colors hover:bg-[#2D3340] disabled:cursor-wait disabled:opacity-70"
-                    style={{ borderRadius: 0 }}
-                >
-                    {isSharing ? "Saving..." : "Share to Cloud"}
-                </button>
-                {shareMessage && (
-                    <div
-                        className="border border-[#3B4252] bg-[#181A20]/95 px-3 py-1 text-[11px] text-[#E2E8F0] shadow-[4px_4px_0px_0px_#000]"
-                        style={{ borderRadius: 0 }}
-                    >
-                        {shareMessage}
-                    </div>
-                )}
-            </div>
-
             {showGrid && (
                 <svg className="absolute inset-0 pointer-events-none z-0" width="100%" height="100%">
                     {minorVerticalLines.map((x) => {
@@ -1560,7 +1524,7 @@ export default function Canvas() {
                                 y1={0}
                                 x2={sx}
                                 y2={viewportSize.height}
-                                stroke="rgba(255, 255, 255, 0.04)"
+                                stroke={isDeepCanvasMode ? "rgba(255, 255, 255, 0.06)" : "rgba(255, 255, 255, 0.04)"}
                                 strokeWidth={1}
                             />
                         );
@@ -1574,7 +1538,7 @@ export default function Canvas() {
                                 y1={sy}
                                 x2={viewportSize.width}
                                 y2={sy}
-                                stroke="rgba(255, 255, 255, 0.04)"
+                                stroke={isDeepCanvasMode ? "rgba(255, 255, 255, 0.06)" : "rgba(255, 255, 255, 0.04)"}
                                 strokeWidth={1}
                             />
                         );
@@ -1588,7 +1552,7 @@ export default function Canvas() {
                                 y1={0}
                                 x2={sx}
                                 y2={viewportSize.height}
-                                stroke="rgba(255, 255, 255, 0.1)"
+                                stroke={isDeepCanvasMode ? "rgba(255, 255, 255, 0.14)" : "rgba(255, 255, 255, 0.1)"}
                                 strokeWidth={1.15}
                             />
                         );
@@ -1602,7 +1566,7 @@ export default function Canvas() {
                                 y1={sy}
                                 x2={viewportSize.width}
                                 y2={sy}
-                                stroke="rgba(255, 255, 255, 0.1)"
+                                stroke={isDeepCanvasMode ? "rgba(255, 255, 255, 0.14)" : "rgba(255, 255, 255, 0.1)"}
                                 strokeWidth={1.15}
                             />
                         );
