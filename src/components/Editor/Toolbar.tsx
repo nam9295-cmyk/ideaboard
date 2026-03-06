@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MousePointer2, Square, Type, Image as ImageIcon, Hand, ZoomIn, ZoomOut, Monitor, Smartphone, ChevronRight, FolderOpen } from "lucide-react";
+import { MousePointer2, Square, Type, Image as ImageIcon, Hand, ZoomIn, ZoomOut, Monitor, Smartphone, ChevronRight, FolderOpen, Sparkles } from "lucide-react";
 import { useEditor } from "@/context/EditorContext";
 import { screenToWorld } from "@/utils/coords";
 import { snapToGrid } from "@/utils/snap";
 import DashboardModal from "./DashboardModal";
 
 export default function Toolbar() {
-    const { addNode, pan, zoom, setPan, dimOutsideFrames, setDimOutsideFrames, gridSize, activeGroupId, setActiveGroupId, nodes, setSelection, deleteNodes, paintLayer, removePaint } = useEditor();
+    const { addNode, pan, zoom, setPan, dimOutsideFrames, setDimOutsideFrames, gridSize, activeGroupId, setActiveGroupId, nodes, setSelection, deleteNodes, paintLayer, removePaint, newProject } = useEditor();
     const [showGrid, setShowGrid] = useState(true);
     const [showMajorGrid, setShowMajorGrid] = useState(true);
     const [hasRecentWork, setHasRecentWork] = useState(false);
@@ -113,11 +113,29 @@ export default function Toolbar() {
         }
     };
 
+    const handleNewProject = () => {
+        const hasWork = nodes.length > 0 || paintLayer.size > 0;
+        if (hasWork) {
+            const confirmed = window.confirm("저장하지 않은 내용은 사라집니다. 새로 시작하시겠습니까?");
+            if (!confirmed) return;
+        }
+        newProject();
+    };
+
     return (
         <>
             <div className="h-12 bg-[#181A20] border-b border-[#313543] text-[#E2E8F0] flex items-center px-4 justify-between z-10 shrink-0">
                 <div className="flex items-center space-x-2">
                     <span className="font-bold text-lg mr-4">MockupEditor</span>
+                    <button
+                        type="button"
+                        onClick={handleNewProject}
+                        className="flex items-center gap-2 border-2 border-[#E2E8F0] bg-[#3A1F24] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#FDE68A] shadow-[4px_4px_0px_0px_#000] hover:bg-[#4A252C]"
+                        style={{ borderRadius: 0 }}
+                    >
+                        <Sparkles size={14} />
+                        New
+                    </button>
                     <button
                         type="button"
                         onClick={() => setIsDashboardOpen(true)}

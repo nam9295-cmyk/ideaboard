@@ -42,6 +42,7 @@ interface EditorState {
     removePaint: (key: string, skipHistory?: boolean) => void;
     saveToCloud: () => Promise<string | null>;
     openCloudBoard: (id: string) => Promise<boolean>;
+    newProject: () => void;
 
     // History
     history: { past: Snapshot[]; future: Snapshot[] };
@@ -450,6 +451,21 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         return nextId;
     };
 
+    const newProject = () => {
+        setNodes([]);
+        setSelectedNodeIds([]);
+        setActiveGroupId(null);
+        setCurrentCloudBoardId(null);
+        setCurrentCloudBoardTitle(null);
+        setPaintLayer(new Set());
+        setHistory({ past: [], future: [] });
+        setToolMode("select");
+
+        if (typeof window !== "undefined") {
+            window.history.pushState({}, "", window.location.pathname);
+        }
+    };
+
     return (
         <EditorContext.Provider
             value={{
@@ -488,6 +504,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 removePaint,
                 saveToCloud,
                 openCloudBoard,
+                newProject,
                 history,
                 pushSnapshot,
                 undo,
