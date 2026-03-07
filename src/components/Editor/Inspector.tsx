@@ -1,11 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useEditor } from "@/context/EditorContext";
 import { CanvasNode } from "@/types";
 
 export default function Inspector() {
     const { nodes, selectedNodeIds, updateNode } = useEditor();
     const PASTEL_COLORS = ['#F7CAC9', '#91A8D0', '#B4E1D1', '#FDFD96', '#E2D0F9', '#FFD3B6', '#A8E6CF', '#E2E8F0'];
+    const FONT_SIZE_PRESETS = [12, 14, 16, 18, 24, 32, 48, 64];
+    const FONT_FAMILY_OPTIONS = [
+        { value: "JetBrains Mono", label: "JetBrains Mono" },
+        { value: "Noto Sans KR", label: "Noto Sans KR" },
+        { value: "IBM Plex Sans KR", label: "IBM Plex Sans KR" },
+    ] as const;
     const measureText = (text: string, fontSize: number, fontFamily: string, fontWeight: "normal" | "bold") => {
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
@@ -52,6 +59,20 @@ export default function Inspector() {
     const selectedNode = selectedNodeIds.length === 1
         ? nodes.find((n) => n.id === selectedNodeIds[0])
         : null;
+    const [fontSizeInput, setFontSizeInput] = useState("");
+
+    useEffect(() => {
+        if (selectedNode?.type === "TEXT") {
+            setFontSizeInput(String(selectedNode.fontSize || 14));
+            return;
+        }
+
+        setFontSizeInput("");
+    }, [
+        selectedNode?.id,
+        selectedNode?.type,
+        selectedNode?.type === "TEXT" ? selectedNode.fontSize : null,
+    ]);
 
     if (!selectedNode && !isMultiple) {
         return (
@@ -81,6 +102,24 @@ export default function Inspector() {
 
     // Add check to ensure selectedNode is defined (though find returns undefined)
     if (!selectedNode) return null;
+
+    const commitFontSize = (node: Extract<CanvasNode, { type: "TEXT" }>, rawValue: string) => {
+        const trimmed = rawValue.trim();
+        if (!trimmed) {
+            setFontSizeInput(String(node.fontSize || 14));
+            return;
+        }
+
+        const parsed = Number(trimmed);
+        if (!Number.isFinite(parsed)) {
+            setFontSizeInput(String(node.fontSize || 14));
+            return;
+        }
+
+        const nextFontSize = Math.min(200, Math.max(8, Math.round(parsed)));
+        setFontSizeInput(String(nextFontSize));
+        updateTextNode(node, { fontSize: nextFontSize } as any, true);
+    };
 
     return (
         <div className="w-60 bg-[#181A20] border-l border-[#313543] flex flex-col z-10 shrink-0 text-[#E2E8F0]">
@@ -233,28 +272,66 @@ export default function Inspector() {
                     <>
                         <div>
                             <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Font Size</label>
-                            <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
-                                <input
-                                    type="number"
-                                    min={8}
-                                    max={200}
-                                    value={selectedNode.fontSize}
-                                    onChange={(e) => updateTextNode(selectedNode, { fontSize: Math.max(8, Number(e.target.value) || 14) } as any, true)}
-                                    className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]"
-                                />
-                                <span className="text-[#64748B] text-xs ml-2">px</span>
+                            <div className="grid grid-cols-[1fr,92px] gap-2">
+                                <div className="flex items-center border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1">
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={fontSizeInput}
+                                        onChange={(e) => {
+                                            const nextValue = e.target.value;
+                                            if (/^\d{0,3}$/.test(nextValue)) {
+                                                setFontSizeInput(nextValue);
+                                            }
+                                        }}
+                                        onBlur={() => commitFontSize(selectedNode, fontSizeInput)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                commitFontSize(selectedNode, fontSizeInput);
+                                                (e.currentTarget as HTMLInputElement).blur();
+                                            }
+                                            if (e.key === "Escape") {
+                                                e.preventDefault();
+                                                setFontSizeInput(String(selectedNode.fontSize || 14));
+                                                (e.currentTarget as HTMLInputElement).blur();
+                                            }
+                                        }}
+                                        className="w-full text-sm outline-none bg-transparent text-[#E2E8F0]"
+                                    />
+                                    <span className="text-[#64748B] text-xs ml-2">px</span>
+                                </div>
+                                <select
+                                    value={FONT_SIZE_PRESETS.includes(selectedNode.fontSize) ? String(selectedNode.fontSize) : ""}
+                                    onChange={(e) => {
+                                        const nextValue = Number(e.target.value);
+                                        if (!Number.isFinite(nextValue)) return;
+                                        setFontSizeInput(String(nextValue));
+                                        updateTextNode(selectedNode, { fontSize: nextValue } as any, true);
+                                    }}
+                                    className="w-full text-sm border border-[#3B4252] rounded px-2 py-1 outline-none bg-[#1E2129] text-[#E2E8F0]"
+                                >
+                                    <option value="">Preset</option>
+                                    {FONT_SIZE_PRESETS.map((size) => (
+                                        <option key={size} value={size}>
+                                            {size}px
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Font Family</label>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Font</label>
                             <select
                                 value={(selectedNode as any).fontFamily || "JetBrains Mono"}
                                 onChange={(e) => updateTextNode(selectedNode, { fontFamily: e.target.value } as any, true)}
                                 className="w-full text-sm border border-[#3B4252] rounded px-2 py-1 outline-none bg-[#1E2129] text-[#E2E8F0]"
                             >
-                                <option value="JetBrains Mono">JetBrains Mono</option>
-                                <option value="Noto Sans KR">Noto Sans KR</option>
-                                <option value="IBM Plex Sans KR">IBM Plex Sans KR</option>
+                                {FONT_FAMILY_OPTIONS.map((font) => (
+                                    <option key={font.value} value={font.value}>
+                                        {font.label}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div>

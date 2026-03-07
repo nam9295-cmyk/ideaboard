@@ -1668,7 +1668,7 @@ export default function Canvas() {
                     return (
                         <div
                             key={key}
-                            className="absolute bg-black"
+                            className="absolute bg-[#E2E8F0]"
                             style={{
                                 left: cx * gridSize,
                                 top: cy * gridSize,
