@@ -167,18 +167,37 @@ export default function Canvas() {
             height: Math.max(height ?? 0, metrics.height + TEXT_HIT_PADDING_Y),
         };
     };
-    const syncEditingTextareaSize = () => {
-        const textarea = editingTextareaRef.current;
-        if (!textarea) return;
+    const getEditingTextareaBaseSize = (
+        node?: Extract<CanvasNode, { type: 'TEXT' }> | null
+    ) => {
+        const baseWidth = Math.ceil((typeof node?.width === "number" ? node.width : TEXT_BOX_DEFAULT_WIDTH) * zoom);
+        const baseHeight = Math.ceil((typeof node?.height === "number" ? node.height : TEXT_BOX_DEFAULT_HEIGHT) * zoom);
 
-        const minWidth = Math.max(60, Math.ceil(TEXT_BOX_MIN_WIDTH * zoom));
-        const minHeight = Math.max(28, Math.ceil(TEXT_BOX_MIN_HEIGHT * zoom));
-
-        textarea.style.width = "0px";
-        textarea.style.height = "0px";
-
-        const nextWidth = Math.max(minWidth, Math.ceil(textarea.scrollWidth));
-        const nextHeight = Math.max(minHeight, Math.ceil(textarea.scrollHeight));
+        return {
+            width: Math.max(60, baseWidth),
+            height: Math.max(28, baseHeight),
+        };
+    };
+    const resetEditingTextareaSize = (
+        node?: Extract<CanvasNode, { type: 'TEXT' }> | null
+    ) => {
+        const nextBaseSize = getEditingTextareaBaseSize(node);
+        setEditingTextareaWidth(nextBaseSize.width);
+        setEditingTextareaHeight(nextBaseSize.height);
+    };
+    const syncEditingTextareaSize = (nextText = editingText) => {
+        const editingNode = editingNodeId
+            ? nodes.find((n): n is Extract<CanvasNode, { type: 'TEXT' }> => n.id === editingNodeId && n.type === 'TEXT')
+            : undefined;
+        const baseSize = getEditingTextareaBaseSize(editingNode);
+        const autoSized = getAutoSizedTextDimensions(
+            nextText || " ",
+            editingFontSize,
+            editingFontFamily,
+            editingFontWeight
+        );
+        const nextWidth = Math.max(baseSize.width, Math.ceil(autoSized.width * zoom));
+        const nextHeight = Math.max(baseSize.height, Math.ceil(autoSized.height * zoom));
 
         setEditingTextareaWidth(nextWidth);
         setEditingTextareaHeight(nextHeight);
@@ -481,6 +500,7 @@ export default function Canvas() {
             if (!(node as any).verticalAlign) {
                 updateNode(node.id, { verticalAlign: "top" } as any, true);
             }
+            resetEditingTextareaSize(node);
             setEditingNodeId(node.id);
             setEditingText(node.text);
             setEditingFontSize(node.fontSize || 14);
@@ -708,20 +728,11 @@ export default function Canvas() {
             } else {
                 const existingNode = nodes.find((n) => n.id === editingNodeId);
                 if (existingNode?.type === 'TEXT') {
-                    const textarea = editingTextareaRef.current;
-                    const measuredWidth = textarea
-                        ? Math.ceil(textarea.scrollWidth / zoom)
-                        : undefined;
-                    const measuredHeight = textarea
-                        ? Math.ceil(textarea.scrollHeight / zoom)
-                        : undefined;
                     const nextSize = getAutoSizedTextDimensions(
                         editingText,
                         editingFontSize,
                         editingFontFamily,
-                        editingFontWeight,
-                        measuredWidth,
-                        measuredHeight
+                        editingFontWeight
                     );
                     updateNode(editingNodeId, {
                         text: editingText,
@@ -739,6 +750,7 @@ export default function Canvas() {
             }
             setEditingNodeId(null);
             setEditingText("");
+            resetEditingTextareaSize();
             setToolMode('select');
         }
     };
@@ -1424,7 +1436,7 @@ export default function Canvas() {
                     switch (toolMode) {
                         case 'text':
                             e.preventDefault();
-                            const newText: CanvasNode = {
+                            const newText: Extract<CanvasNode, { type: 'TEXT' }> = {
                                 id: crypto.randomUUID(),
                                 type: 'TEXT',
                                 x: worldX,
@@ -1441,6 +1453,7 @@ export default function Canvas() {
                             } as any;
                             addNode(newText);
                             recordLastWorkPos(worldX, worldY);
+                            resetEditingTextareaSize(newText);
                             setEditingNodeId(newText.id);
                             setEditingText("");
                             setEditingFontSize(14);
@@ -1721,12 +1734,14 @@ export default function Canvas() {
                                 {isEditing ? (
                                     <textarea
                                         ref={editingTextareaRef}
+                                        wrap="off"
                                         value={editingText}
                                         onChange={(e) => {
-                                            setEditingText(e.target.value);
-                                            syncEditingTextareaSize();
+                                            const nextValue = e.target.value;
+                                            setEditingText(nextValue);
+                                            syncEditingTextareaSize(nextValue);
                                         }}
-                                        onInput={syncEditingTextareaSize}
+                                        onInput={(e) => syncEditingTextareaSize(e.currentTarget.value)}
                                         onKeyDown={(e) => {
                                             e.stopPropagation();
                                             if (e.key === "Escape") {
@@ -1745,14 +1760,14 @@ export default function Canvas() {
                                             lineHeight: "1.4",
                                             letterSpacing: "inherit",
                                             padding: `${EDITING_PADDING_Y}px ${EDITING_PADDING_X}px`,
-                                            background: "rgba(0,0,0,0.5)",
+                                            background: "transparent",
                                             border: "none",
                                             outline: "none",
                                             caretColor: finalTextColor,
                                             height: editingTextareaHeight,
                                             width: editingTextareaWidth,
-                                            minHeight: editingTextareaHeight,
-                                            minWidth: editingTextareaWidth,
+                                            minHeight: Math.max(28, Math.ceil((typeof node.height === "number" ? node.height : TEXT_BOX_DEFAULT_HEIGHT) * zoom)),
+                                            minWidth: Math.max(60, Math.ceil((typeof node.width === "number" ? node.width : TEXT_BOX_DEFAULT_WIDTH) * zoom)),
                                             borderRadius: 0,
                                             boxSizing: "border-box",
                                             whiteSpace: "pre",
