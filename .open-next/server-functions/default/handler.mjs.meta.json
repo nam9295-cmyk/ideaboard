@@ -4412,7 +4412,7 @@
       ],
       "format": "cjs"
     },
-    ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__72391813._.js": {
+    ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__5883d4f5._.js": {
       "bytes": 834,
       "imports": [
         {
@@ -4509,7 +4509,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/chunks/ssr/_229bac27._.js": {
-      "bytes": 76027,
+      "bytes": 75988,
       "imports": [],
       "format": "cjs"
     },
@@ -4683,9 +4683,9 @@
           "original": "/Users/nam9295/Desktop/john_2.0/code/asmemo/.open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__52054889._.js"
         },
         {
-          "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__72391813._.js",
+          "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__5883d4f5._.js",
           "kind": "require-call",
-          "original": "/Users/nam9295/Desktop/john_2.0/code/asmemo/.open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__72391813._.js"
+          "original": "/Users/nam9295/Desktop/john_2.0/code/asmemo/.open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__5883d4f5._.js"
         },
         {
           "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__8e2427a8._.js",
@@ -4889,9 +4889,9 @@
           "original": "/Users/nam9295/Desktop/john_2.0/code/asmemo/.open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__52054889._.js"
         },
         {
-          "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__72391813._.js",
+          "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__5883d4f5._.js",
           "kind": "require-call",
-          "original": "/Users/nam9295/Desktop/john_2.0/code/asmemo/.open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__72391813._.js"
+          "original": "/Users/nam9295/Desktop/john_2.0/code/asmemo/.open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__5883d4f5._.js"
         },
         {
           "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__8e2427a8._.js",
@@ -7602,7 +7602,7 @@
         ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__52054889._.js": {
           "bytesInOutput": 1528
         },
-        ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__72391813._.js": {
+        ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__5883d4f5._.js": {
           "bytesInOutput": 919
         },
         ".open-next/server-functions/default/.next/server/chunks/ssr/[root-of-the-server]__8e2427a8._.js": {
@@ -7621,7 +7621,7 @@
           "bytesInOutput": 2611
         },
         ".open-next/server-functions/default/.next/server/chunks/ssr/_229bac27._.js": {
-          "bytesInOutput": 79466
+          "bytesInOutput": 79427
         },
         ".open-next/server-functions/default/.next/server/chunks/ssr/_b1c71f8f._.js": {
           "bytesInOutput": 17862
@@ -7804,7 +7804,7 @@
           "bytesInOutput": 57079
         }
       },
-      "bytes": 2862343
+      "bytes": 2862304
     }
   }
 }

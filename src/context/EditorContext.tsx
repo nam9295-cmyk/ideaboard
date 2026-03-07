@@ -411,7 +411,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     };
 
     const saveToCloud = async () => {
-        const { db, doc, setDoc } = await getFirestoreClient();
         const nextId = currentCloudBoardId ?? crypto.randomUUID().replace(/-/g, "").slice(0, 12);
         let nextTitle = currentCloudBoardTitle;
 
@@ -426,6 +425,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
             nextTitle = providedTitle.trim() || "Untitled";
         }
+
+        const { db, doc, setDoc } = await getFirestoreClient();
 
         await setDoc(doc(db, "ideaboards", nextId), {
             nodes,

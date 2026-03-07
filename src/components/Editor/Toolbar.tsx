@@ -13,7 +13,7 @@ import {
     MoonStar,
     PenTool,
     RectangleHorizontal,
-    Share2,
+    Save,
     Sparkles,
     Square,
     Type,
@@ -155,10 +155,10 @@ export default function Toolbar() {
                 setShareMessage("Save cancelled");
                 return;
             }
-            setShareMessage(`Copied link (${boardId})`);
+            setShareMessage(`Saved (${boardId})`);
         } catch (error) {
             console.error("Failed to save board to cloud", error);
-            setShareMessage("Cloud save failed");
+            setShareMessage("Save failed");
         } finally {
             setIsSharing(false);
             window.setTimeout(() => setShareMessage(null), 2500);
@@ -279,7 +279,7 @@ export default function Toolbar() {
                     <SystemButton onClick={handleToggleDeepCanvasMode} icon={MoonStar} label="Deep" active={isDeepCanvasMode} />
                     <SystemButton onClick={handleNewProject} icon={Sparkles} label="New" tone="default" />
                     <SystemButton onClick={() => setIsDashboardOpen(true)} icon={FolderOpen} label="Projects" />
-                    <SystemButton onClick={handleShareToCloud} icon={Share2} label={isSharing ? "Saving" : "Share"} disabled={isSharing} />
+                    <SystemButton onClick={handleShareToCloud} icon={Save} label={isSharing ? "Saving" : "Save"} disabled={isSharing} />
                     <SystemButton onClick={handleClearAll} icon={Square} label="Clear" tone="danger" />
                     <SystemButton onClick={handleFocusRecentWork} icon={ChevronRight} label="Recent" disabled={!hasRecentWork} />
                     <div className="mx-0.5 flex shrink-0 items-center gap-1 border border-[#3B4252] bg-[#1E2129] px-1.5 py-1 text-[#94A3B8] shadow-[2px_2px_0px_0px_#000]">
