@@ -244,7 +244,9 @@ export default function Toolbar() {
         <>
             <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[#313543] bg-[#181A20] px-3 text-[#E2E8F0]">
                 <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                    <span className="mr-1 shrink-0 text-base font-bold">MockupEditor</span>
+                    <span className="mr-1 shrink-0 text-[15px] font-black tracking-[0.1em] text-[#F8FAFC] uppercase">
+                        Verygooditor
+                    </span>
 
                     {activeGroupId && activeGroupNode && (
                         <div className="mr-1 flex shrink-0 items-center gap-1.5 border border-[#3B4252] bg-[#232734] px-2 py-1 text-xs">
