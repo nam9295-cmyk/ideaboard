@@ -158,7 +158,7 @@ export default function Toolbar() {
             setShareMessage(`Saved (${boardId})`);
         } catch (error) {
             console.error("Failed to save board to cloud", error);
-            setShareMessage("Save failed");
+            setShareMessage(error instanceof Error ? `Save failed: ${error.message}` : "Save failed");
         } finally {
             setIsSharing(false);
             window.setTimeout(() => setShareMessage(null), 2500);

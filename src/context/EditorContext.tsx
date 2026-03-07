@@ -91,6 +91,32 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             setDoc: firestore.setDoc,
         };
     };
+    const sanitizeForFirestore = (value: unknown): unknown => {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+
+        if (Array.isArray(value)) {
+            return value
+                .map((item) => sanitizeForFirestore(item))
+                .filter((item) => item !== undefined);
+        }
+
+        if (typeof value === "number") {
+            return Number.isFinite(value) ? value : null;
+        }
+
+        if (typeof value === "object") {
+            return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((acc, [key, entryValue]) => {
+                const sanitizedValue = sanitizeForFirestore(entryValue);
+                if (sanitizedValue !== undefined) {
+                    acc[key] = sanitizedValue;
+                }
+                return acc;
+            }, {});
+        }
+
+        return value;
+    };
 
     const loadCloudBoard = async (boardId: string) => {
         const { db, doc, getDoc } = await getFirestoreClient();
@@ -208,9 +234,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         pushSnapshot();
         setNodes((prev) => {
             const hasActiveGroup = !!activeGroupId && prev.some((n) => n.id === activeGroupId && n.type === "GROUP");
+            const nextGroupId = node.groupId ?? (hasActiveGroup ? activeGroupId ?? undefined : undefined);
             const nodeWithGroup = {
                 ...node,
-                groupId: node.groupId || (hasActiveGroup ? activeGroupId : undefined) || undefined,
+                ...(nextGroupId ? { groupId: nextGroupId } : {}),
             };
             return [...prev, nodeWithGroup];
         });
@@ -221,10 +248,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         pushSnapshot();
         setNodes((prev) => {
             const hasActiveGroup = !!activeGroupId && prev.some((n) => n.id === activeGroupId && n.type === "GROUP");
-            const nodesWithGroup = newNodes.map((n) => ({
-                ...n,
-                groupId: n.groupId || (hasActiveGroup ? activeGroupId : undefined) || undefined,
-            }));
+            const nodesWithGroup = newNodes.map((n) => {
+                const nextGroupId = n.groupId ?? (hasActiveGroup ? activeGroupId ?? undefined : undefined);
+                return {
+                    ...n,
+                    ...(nextGroupId ? { groupId: nextGroupId } : {}),
+                };
+            });
             return [...prev, ...nodesWithGroup];
         });
         setSelectedNodeIds(newNodes.map(n => n.id));
@@ -295,7 +325,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 y: minY - PADDING,
                 width: (maxX - minX) + (PADDING * 2),
                 height: Math.max(0, maxY - minY) + (PADDING * 2),
-                groupId: parentGroupId
+                ...(parentGroupId ? { groupId: parentGroupId } : {})
             } as CanvasNode;
 
             const next = prev.map(n => selectedNodeIds.includes(n.id) ? { ...n, groupId } : n);
@@ -427,9 +457,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         }
 
         const { db, doc, setDoc } = await getFirestoreClient();
+        const sanitizedNodes = sanitizeForFirestore(nodes) as CanvasNode[];
 
         await setDoc(doc(db, "ideaboards", nextId), {
-            nodes,
+            nodes: sanitizedNodes,
             title: nextTitle || "Untitled",
             updatedAt: new Date().toISOString(),
         });
