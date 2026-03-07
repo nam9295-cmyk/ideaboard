@@ -100,6 +100,7 @@ export default function Canvas() {
     const TEXT_BOX_MIN_WIDTH = 80;
     const TEXT_BOX_MIN_HEIGHT = 36;
     const TEXT_RESIZE_HANDLE_SIZE = 10;
+    const TEXT_LINE_HEIGHT = 1.4;
     const FONT_FAMILY_MAP: Record<string, string> = {
         "JetBrains Mono": 'var(--font-jetbrains-mono), "JetBrains Mono", monospace',
         "Noto Sans KR": 'var(--font-noto-sans-kr), "Noto Sans KR", sans-serif',
@@ -119,10 +120,11 @@ export default function Canvas() {
             : fontFamily === "IBM Plex Sans KR"
                 ? '"IBM Plex Sans KR", sans-serif'
                 : '"JetBrains Mono", monospace';
+        const lineHeight = fontSize * TEXT_LINE_HEIGHT;
         if (!context) {
             return {
                 width: Math.max(fontSize * 0.6, ...lines.map((line) => line.length * fontSize * 0.6)),
-                height: Math.max(fontSize * 1.2, lines.length * fontSize * 1.2),
+                height: Math.max(lineHeight, lines.length * lineHeight),
             };
         }
 
@@ -131,26 +133,92 @@ export default function Canvas() {
             fontSize * 0.6,
             ...lines.map((line) => context.measureText(line || " ").width)
         );
-        const height = Math.max(fontSize * 1.2, lines.length * fontSize * 1.2);
+        const height = Math.max(lineHeight, lines.length * lineHeight);
 
         return { width, height };
     };
+    const getWrappedTextMetrics = (
+        text: string,
+        fontSize = 16,
+        fontFamily = "JetBrains Mono",
+        fontWeight: "normal" | "bold" = "normal",
+        maxWidth?: number
+    ) => {
+        if (!maxWidth || maxWidth <= 0) {
+            return getTextMetrics(text, fontSize, fontFamily, fontWeight);
+        }
+
+        if (!textMeasureCanvasRef.current) {
+            textMeasureCanvasRef.current = document.createElement("canvas");
+        }
+        const context = textMeasureCanvasRef.current.getContext("2d");
+        const resolvedFontFamily = fontFamily === "Noto Sans KR"
+            ? '"Noto Sans KR", sans-serif'
+            : fontFamily === "IBM Plex Sans KR"
+                ? '"IBM Plex Sans KR", sans-serif'
+                : '"JetBrains Mono", monospace';
+        const lineHeight = fontSize * TEXT_LINE_HEIGHT;
+        const minCharWidth = fontSize * 0.6;
+
+        if (context) {
+            context.font = `${fontWeight} ${fontSize}px ${resolvedFontFamily}`;
+        }
+
+        const measureChar = (char: string) => context ? context.measureText(char).width : minCharWidth;
+
+        let lineCount = 0;
+        let longestLine = 0;
+
+        for (const rawLine of (text || " ").split("\n")) {
+            const line = rawLine || " ";
+            let currentLineWidth = 0;
+
+            for (const char of Array.from(line)) {
+                const charWidth = measureChar(char);
+                if (currentLineWidth > 0 && currentLineWidth + charWidth > maxWidth) {
+                    lineCount += 1;
+                    longestLine = Math.max(longestLine, currentLineWidth);
+                    currentLineWidth = charWidth;
+                } else {
+                    currentLineWidth += charWidth;
+                }
+            }
+
+            lineCount += 1;
+            longestLine = Math.max(longestLine, currentLineWidth || minCharWidth);
+        }
+
+        return {
+            width: Math.max(minCharWidth, Math.min(longestLine, maxWidth)),
+            height: Math.max(lineHeight, lineCount * lineHeight),
+        };
+    };
     const getTextLayout = (node: Extract<CanvasNode, { type: 'TEXT' }>) => {
+        const fontSize = node.fontSize || 14;
+        const fontFamily = (node as any).fontFamily || "JetBrains Mono";
+        const fontWeight = (node as any).fontWeight || "normal";
         const metrics = getTextMetrics(
             node.text,
-            node.fontSize || 16,
-            (node as any).fontFamily || "JetBrains Mono",
-            (node as any).fontWeight || "normal"
+            fontSize,
+            fontFamily,
+            fontWeight
         );
         const naturalWidth = metrics.width + TEXT_HIT_PADDING_X;
-        const naturalHeight = metrics.height + TEXT_HIT_PADDING_Y;
         const boxWidth = typeof node.width === 'number' ? node.width : Math.max(naturalWidth, TEXT_BOX_DEFAULT_WIDTH);
+        const wrappedMetrics = getWrappedTextMetrics(
+            node.text,
+            fontSize,
+            fontFamily,
+            fontWeight,
+            Math.max(boxWidth - TEXT_HIT_PADDING_X, fontSize * 0.6)
+        );
+        const naturalHeight = wrappedMetrics.height + TEXT_HIT_PADDING_Y;
         const boxHeight = typeof node.height === 'number' ? node.height : Math.max(naturalHeight, TEXT_BOX_DEFAULT_HEIGHT);
 
         return {
             boxWidth,
-            boxHeight,
-            renderedFontSize: node.fontSize || 14,
+            boxHeight: Math.max(boxHeight, naturalHeight),
+            renderedFontSize: fontSize,
         };
     };
     const getAutoSizedTextDimensions = (
