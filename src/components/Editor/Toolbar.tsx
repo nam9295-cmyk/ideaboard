@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import {
     ArrowRight,
     Box,
@@ -58,6 +58,9 @@ export default function Toolbar() {
         setToolMode,
         newProject,
         saveToCloud,
+        exportVGE,
+        exportJSON,
+        importVGE,
         handleGoogleLogin,
         handleLogout,
     } = useEditor();
@@ -67,6 +70,7 @@ export default function Toolbar() {
     const [shareMessage, setShareMessage] = useState<string | null>(null);
     const [isGridVisible, setIsGridVisible] = useState(true);
     const [isDeepCanvasMode, setIsDeepCanvasMode] = useState(false);
+    const importInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         const readRecentWork = () => {
@@ -176,6 +180,40 @@ export default function Toolbar() {
         }
     };
 
+    const showActionMessage = (message: string) => {
+        setShareMessage(message);
+        window.setTimeout(() => setShareMessage(null), 2500);
+    };
+
+    const handleImportButtonClick = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleImportChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+
+        const imported = await importVGE(file);
+        if (imported) {
+            showActionMessage(`Imported (${file.name})`);
+        }
+    };
+
+    const handleExportVGE = async () => {
+        const exported = await exportVGE();
+        if (exported) {
+            showActionMessage("Saved (.vge)");
+        }
+    };
+
+    const handleExportJSON = async () => {
+        const exported = await exportJSON();
+        if (exported) {
+            showActionMessage("Saved (.json)");
+        }
+    };
+
     const handleToggleGrid = () => {
         const nextValue = !isGridVisible;
         setIsGridVisible(nextValue);
@@ -253,6 +291,13 @@ export default function Toolbar() {
 
     return (
         <>
+            <input
+                ref={importInputRef}
+                type="file"
+                accept=".vge"
+                className="hidden"
+                onChange={handleImportChange}
+            />
             <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[#313543] bg-[#181A20] px-3 text-[#E2E8F0]">
                 <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                     <span className="mr-1 shrink-0 text-[15px] font-black tracking-[0.1em] text-[#F8FAFC] uppercase">
@@ -291,6 +336,9 @@ export default function Toolbar() {
                     <SystemButton onClick={handleToggleGrid} icon={Grid3X3} label="Grid" active={isGridVisible} />
                     <SystemButton onClick={handleToggleDeepCanvasMode} icon={MoonStar} label="Deep" active={isDeepCanvasMode} />
                     <SystemButton onClick={handleNewProject} icon={Sparkles} label="New" tone="default" />
+                    <SystemButton onClick={handleImportButtonClick} icon={FolderOpen} label="불러오기 (.vge)" />
+                    <SystemButton onClick={handleExportVGE} icon={Save} label="백업 저장 (.vge)" />
+                    <SystemButton onClick={handleExportJSON} icon={Sparkles} label="AI 전달용 (.json)" />
                     <SystemButton onClick={() => setIsDashboardOpen(true)} icon={FolderOpen} label="Projects" />
                     <SystemButton onClick={handleShareToCloud} icon={Save} label={isSharing ? "Saving" : "Save"} disabled={isSharing} />
                     <SystemButton onClick={handleClearAll} icon={Square} label="Clear" tone="danger" />
@@ -316,7 +364,6 @@ export default function Toolbar() {
                             <ZoomIn size={12} />
                         </button>
                     </div>
-                    <SystemButton icon={Box} label="Export" tone="accent" />
                 </div>
             </div>
 

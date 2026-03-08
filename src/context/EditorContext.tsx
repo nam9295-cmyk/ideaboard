@@ -44,6 +44,9 @@ interface EditorState {
     removePaint: (key: string, skipHistory?: boolean) => void;
     saveToCloud: () => Promise<string | null>;
     openCloudBoard: (id: string) => Promise<boolean>;
+    exportVGE: () => Promise<boolean>;
+    exportJSON: () => Promise<boolean>;
+    importVGE: (file: File) => Promise<boolean>;
     handleGoogleLogin: () => Promise<void>;
     handleLogout: () => Promise<void>;
     newProject: () => void;
@@ -62,6 +65,32 @@ interface Snapshot {
 
 const EditorContext = createContext<EditorState | undefined>(undefined);
 const ADMIN_EMAIL = "nam9295@gmail.com";
+const VGE_SIGNATURE = "verygooditor_v1";
+type EdgeNode = Extract<CanvasNode, { type: "LINE" | "ARROW" }>;
+type ExportPayload = {
+    _signature: string;
+    exportedAt: string;
+    data: {
+        nodes: CanvasNode[];
+        edges: EdgeNode[];
+    };
+};
+type SaveDialogFileType = {
+    description: string;
+    accept: Record<string, string[]>;
+};
+type SaveDialogHandle = {
+    createWritable: () => Promise<{
+        write: (data: Blob) => Promise<void>;
+        close: () => Promise<void>;
+    }>;
+};
+type WindowWithSavePicker = Window & {
+    showSaveFilePicker?: (options: {
+        suggestedName: string;
+        types: SaveDialogFileType[];
+    }) => Promise<SaveDialogHandle>;
+};
 
 export function EditorProvider({ children }: { children: ReactNode }) {
     const [zoom, setZoom] = useState(1);
@@ -140,6 +169,71 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         }
 
         return value;
+    };
+    const isEdgeNode = (node: CanvasNode): node is EdgeNode => node.type === "LINE" || node.type === "ARROW";
+    const buildExportPayload = (): ExportPayload => ({
+        _signature: VGE_SIGNATURE,
+        exportedAt: new Date().toISOString(),
+        data: {
+            nodes: nodes.filter((node) => !isEdgeNode(node)),
+            edges: nodes.filter(isEdgeNode),
+        },
+    });
+    const downloadExport = (suggestedName: string, blob: Blob) => {
+        if (typeof window === "undefined") return;
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = suggestedName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    };
+    const saveFileWithDialog = async (suggestedName: string, blob: Blob, types: SaveDialogFileType[]) => {
+        if (typeof window === "undefined") return false;
+
+        try {
+            const savePickerWindow = window as WindowWithSavePicker;
+            if (typeof savePickerWindow.showSaveFilePicker !== "function") {
+                throw new TypeError("showSaveFilePicker is not supported");
+            }
+
+            const handle = await savePickerWindow.showSaveFilePicker({ suggestedName, types });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return true;
+        } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") {
+                return false;
+            }
+
+            if (error instanceof ReferenceError || error instanceof TypeError) {
+                downloadExport(suggestedName, blob);
+                return true;
+            }
+
+            console.error("Failed to save export file", error);
+            if (typeof window !== "undefined") {
+                window.alert("파일 저장에 실패했습니다.");
+            }
+            return false;
+        }
+    };
+    const restoreImportedCanvas = (nextNodes: CanvasNode[], title: string | null) => {
+        setNodes(nextNodes);
+        setSelectedNodeIds([]);
+        setActiveGroupId(null);
+        setPaintLayer(new Set());
+        setHistory({ past: [], future: [] });
+        setCurrentCloudBoardId(null);
+        setCurrentCloudBoardTitle(title);
+        setToolMode("select");
+
+        if (typeof window !== "undefined") {
+            window.history.pushState({}, "", window.location.pathname);
+        }
     };
 
     const loadCloudBoard = async (boardId: string) => {
@@ -544,6 +638,66 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         return nextId;
     };
 
+    const exportVGE = async () => {
+        const blob = new Blob([JSON.stringify(buildExportPayload(), null, 2)], { type: "application/json" });
+        return saveFileWithDialog("베리굿기획안.vge", blob, [
+            {
+                description: "VeryGood Editor File",
+                accept: { "application/json": [".vge"] },
+            },
+        ]);
+    };
+
+    const exportJSON = async () => {
+        const blob = new Blob([JSON.stringify(buildExportPayload(), null, 2)], { type: "application/json" });
+        return saveFileWithDialog("베리굿기획안.json", blob, [
+            {
+                description: "JSON File",
+                accept: { "application/json": [".json"] },
+            },
+        ]);
+    };
+
+    const importVGE = async (file: File) => {
+        const lowerName = file.name.toLowerCase();
+        if (!lowerName.endsWith(".vge")) {
+            if (typeof window !== "undefined") {
+                window.alert(".vge 파일만 불러올 수 있습니다.");
+            }
+            return false;
+        }
+
+        try {
+            const raw = await file.text();
+            const parsed = JSON.parse(raw) as Partial<ExportPayload>;
+
+            if (parsed._signature !== VGE_SIGNATURE) {
+                throw new Error("Invalid signature");
+            }
+
+            const importedNodes = Array.isArray(parsed.data?.nodes) ? parsed.data.nodes as CanvasNode[] : null;
+            const importedEdges = Array.isArray(parsed.data?.edges) ? parsed.data.edges as EdgeNode[] : [];
+
+            if (!importedNodes) {
+                throw new Error("Invalid node payload");
+            }
+
+            const restoredNodes = importedNodes.some(isEdgeNode)
+                ? importedNodes
+                : [...importedNodes, ...importedEdges];
+            const nextTitle = file.name.replace(/\.vge$/i, "") || "Imported Project";
+
+            restoreImportedCanvas(restoredNodes, nextTitle);
+            return true;
+        } catch (error) {
+            console.error("Failed to import VGE", error);
+            if (typeof window !== "undefined") {
+                window.alert("유효한 .vge 파일이 아닙니다.");
+            }
+            return false;
+        }
+    };
+
     const handleGoogleLogin = async () => {
         try {
             const { auth, googleProvider, signInWithPopup, signOut } = await getAuthClient();
@@ -651,6 +805,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 removePaint,
                 saveToCloud,
                 openCloudBoard,
+                exportVGE,
+                exportJSON,
+                importVGE,
                 handleGoogleLogin,
                 handleLogout,
                 newProject,
