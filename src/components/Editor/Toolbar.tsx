@@ -4,6 +4,7 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 import {
     ArrowRight,
     Box,
+    ChevronDown,
     ChevronRight,
     Eraser,
     FolderOpen,
@@ -20,6 +21,7 @@ import {
     Square,
     Type,
     LayoutTemplate,
+    Menu,
     ShieldCheck,
     ZoomIn,
     ZoomOut,
@@ -44,6 +46,7 @@ const TOOL_BUTTONS: Array<{ mode: ToolMode; icon: any; label: string }> = [
 export default function Toolbar() {
     const {
         zoom,
+        setZoom,
         setPan,
         isAdmin,
         adminEmail,
@@ -51,9 +54,7 @@ export default function Toolbar() {
         setActiveGroupId,
         nodes,
         setSelection,
-        deleteNodes,
         paintLayer,
-        removePaint,
         toolMode,
         setToolMode,
         newProject,
@@ -71,6 +72,10 @@ export default function Toolbar() {
     const [isGridVisible, setIsGridVisible] = useState(true);
     const [isDeepCanvasMode, setIsDeepCanvasMode] = useState(false);
     const importInputRef = useRef<HTMLInputElement | null>(null);
+    const fileMenuRef = useRef<HTMLDivElement | null>(null);
+    const accountMenuRef = useRef<HTMLDivElement | null>(null);
+    const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+    const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
 
     useEffect(() => {
         const readRecentWork = () => {
@@ -114,21 +119,36 @@ export default function Toolbar() {
         };
     }, []);
 
+    useEffect(() => {
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node;
+
+            if (fileMenuRef.current && !fileMenuRef.current.contains(target)) {
+                setIsFileMenuOpen(false);
+            }
+
+            if (accountMenuRef.current && !accountMenuRef.current.contains(target)) {
+                setIsAccountMenuOpen(false);
+            }
+        };
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setIsFileMenuOpen(false);
+                setIsAccountMenuOpen(false);
+            }
+        };
+
+        window.addEventListener("pointerdown", handlePointerDown);
+        window.addEventListener("keydown", handleEscape);
+
+        return () => {
+            window.removeEventListener("pointerdown", handlePointerDown);
+            window.removeEventListener("keydown", handleEscape);
+        };
+    }, []);
+
     const activeGroupNode = activeGroupId ? nodes.find((n) => n.id === activeGroupId) : null;
-
-    const handleClearAll = () => {
-        if (nodes.length === 0 && paintLayer.size === 0) return;
-        const confirmed = window.confirm("정말 지우겠습니까?");
-        if (!confirmed) return;
-
-        if (nodes.length > 0) {
-            deleteNodes(nodes.map((n) => n.id));
-        }
-        if (paintLayer.size > 0) {
-            paintLayer.forEach((key) => removePaint(key, true));
-        }
-        setSelection([]);
-    };
 
     const handleFocusRecentWork = () => {
         try {
@@ -146,6 +166,14 @@ export default function Toolbar() {
         } catch {
             // ignore parsing/storage errors
         }
+    };
+
+    const handleZoomOut = () => {
+        setZoom((prev) => Math.max(0.2, Number((prev - 0.1).toFixed(2))));
+    };
+
+    const handleZoomIn = () => {
+        setZoom((prev) => Math.min(4, Number((prev + 0.1).toFixed(2))));
     };
 
     const handleNewProject = () => {
@@ -186,6 +214,7 @@ export default function Toolbar() {
     };
 
     const handleImportButtonClick = () => {
+        setIsFileMenuOpen(false);
         importInputRef.current?.click();
     };
 
@@ -201,6 +230,7 @@ export default function Toolbar() {
     };
 
     const handleExportVGE = async () => {
+        setIsFileMenuOpen(false);
         const exported = await exportVGE();
         if (exported) {
             showActionMessage("Saved (.vge)");
@@ -208,6 +238,7 @@ export default function Toolbar() {
     };
 
     const handleExportJSON = async () => {
+        setIsFileMenuOpen(false);
         const exported = await exportJSON();
         if (exported) {
             showActionMessage("Saved (.json)");
@@ -241,11 +272,10 @@ export default function Toolbar() {
         <button
             type="button"
             onClick={() => setToolMode(mode)}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center border transition-colors ${toolMode === mode
-                ? "border-blue-500 bg-[#232734] text-blue-300 shadow-[2px_2px_0px_0px_#000]"
-                : "border-[#3B4252] bg-[#1E2129] text-[#94A3B8] hover:bg-[#232734] hover:text-[#E2E8F0]"
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors ${toolMode === mode
+                ? "border-blue-500/70 bg-[#1E2737] text-blue-300"
+                : "border-[#303548] bg-[#151922] text-[#94A3B8] hover:bg-[#1B2230] hover:text-[#E2E8F0]"
                 }`}
-            style={{ borderRadius: 0 }}
             title={label}
         >
             <Icon size={14} />
@@ -268,26 +298,52 @@ export default function Toolbar() {
         tone?: "default" | "accent" | "danger";
     }) => {
         const toneClass = active
-            ? "border-blue-500 bg-[#232734] text-blue-300 hover:bg-[#2D3340]"
+            ? "border-blue-500/70 bg-[#1E2737] text-blue-300 hover:bg-[#273245]"
             : tone === "accent"
-                ? "border-[#E2E8F0] bg-[#E2E8F0] text-[#181A20] hover:bg-white"
+                ? "border-[#303548] bg-[#F8FAFC] text-[#181A20] hover:bg-white"
                 : tone === "danger"
-                    ? "border-red-900 bg-[#3A1F24] text-red-300 hover:bg-[#4A252C]"
-                    : "border-[#E2E8F0] bg-[#232734] text-[#E2E8F0] hover:bg-[#2D3340]";
+                    ? "border-[#4D2630] bg-[#27191E] text-red-300 hover:bg-[#321E24]"
+                    : "border-[#303548] bg-[#151922] text-[#E2E8F0] hover:bg-[#1B2230]";
 
         return (
             <button
                 type="button"
                 onClick={onClick}
                 disabled={disabled}
-                className={`flex shrink-0 items-center gap-1.5 border-2 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] shadow-[3px_3px_0px_0px_#000] transition-colors whitespace-nowrap ${toneClass} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-                style={{ borderRadius: 0 }}
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors whitespace-nowrap ${toneClass} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
             >
                 <Icon size={12} />
                 {label}
             </button>
         );
     };
+
+    const DropdownItem = ({
+        onClick,
+        icon: Icon,
+        label,
+        disabled = false,
+        tone = "default",
+    }: {
+        onClick?: () => void;
+        icon: any;
+        label: string;
+        disabled?: boolean;
+        tone?: "default" | "danger";
+    }) => (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${tone === "danger"
+                ? "text-red-300 hover:bg-[#27191E]"
+                : "text-[#E2E8F0] hover:bg-[#1B2230]"
+                } ${disabled ? "cursor-not-allowed opacity-40 hover:bg-transparent" : ""}`}
+        >
+            <Icon size={14} />
+            <span>{label}</span>
+        </button>
+    );
 
     return (
         <>
@@ -298,14 +354,59 @@ export default function Toolbar() {
                 className="hidden"
                 onChange={handleImportChange}
             />
-            <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[#313543] bg-[#181A20] px-3 text-[#E2E8F0]">
-                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                    <span className="mr-1 shrink-0 text-[15px] font-black tracking-[0.1em] text-[#F8FAFC] uppercase">
+            <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[#2A3040] bg-[#12161F] px-4 text-[#E2E8F0]">
+                <div className="flex min-w-0 flex-1 items-center gap-3 overflow-visible">
+                    <span className="shrink-0 text-[15px] font-black tracking-[0.18em] text-[#F8FAFC] uppercase">
                         Verygooditor
                     </span>
 
+                    {isAdmin ? (
+                        <div ref={accountMenuRef} className="relative shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsAccountMenuOpen((prev) => !prev);
+                                    setIsFileMenuOpen(false);
+                                }}
+                                className="flex items-center gap-2 rounded-lg border border-blue-500/40 bg-[#1E2737] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-300 transition-colors hover:bg-[#273245]"
+                            >
+                                <ShieldCheck size={13} />
+                                <span>{adminEmail === "nam9295@gmail.com" ? "Admin" : "Signed In"}</span>
+                                <ChevronDown size={13} className={`transition-transform ${isAccountMenuOpen ? "rotate-180" : ""}`} />
+                            </button>
+
+                            {isAccountMenuOpen && (
+                                <div className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-[220px] rounded-xl border border-[#303548] bg-[#11161F] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+                                    <div className="px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-[#64748B]">
+                                        {adminEmail || "Admin"}
+                                    </div>
+                                    <DropdownItem
+                                        icon={ChevronRight}
+                                        label="Recent"
+                                        disabled={!hasRecentWork}
+                                        onClick={() => {
+                                            setIsAccountMenuOpen(false);
+                                            handleFocusRecentWork();
+                                        }}
+                                    />
+                                    <DropdownItem
+                                        icon={LogOut}
+                                        label="Logout"
+                                        tone="danger"
+                                        onClick={() => {
+                                            setIsAccountMenuOpen(false);
+                                            handleLogout();
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <SystemButton onClick={handleGoogleLogin} icon={LogIn} label="Google" />
+                    )}
+
                     {activeGroupId && activeGroupNode && (
-                        <div className="mr-1 flex shrink-0 items-center gap-1.5 border border-[#3B4252] bg-[#232734] px-2 py-1 text-xs">
+                        <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#303548] bg-[#151922] px-3 py-2 text-xs">
                             <button
                                 className="text-[#94A3B8] transition-colors hover:text-white"
                                 onClick={() => {
@@ -321,54 +422,98 @@ export default function Toolbar() {
                             </span>
                         </div>
                     )}
+                </div>
 
-                    <div className="h-6 w-px shrink-0 bg-[#313543]" />
-
-                    <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto whitespace-nowrap">
+                <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+                    <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto rounded-xl border border-[#303548] bg-[#0F141D] px-2 py-1.5">
                         {TOOL_BUTTONS.map((tool) => (
                             <ToolIconButton key={tool.mode} mode={tool.mode} icon={tool.icon} label={tool.label} />
                         ))}
                     </div>
 
+                    <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[#303548] bg-[#0F141D] p-1.5">
+                        <button
+                            type="button"
+                            onClick={handleToggleGrid}
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${isGridVisible
+                                ? "border-blue-500/70 bg-[#1E2737] text-blue-300"
+                                : "border-[#303548] bg-[#151922] text-[#94A3B8] hover:bg-[#1B2230] hover:text-[#E2E8F0]"
+                                }`}
+                            title="Grid"
+                        >
+                            <Grid3X3 size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleToggleDeepCanvasMode}
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${isDeepCanvasMode
+                                ? "border-blue-500/70 bg-[#1E2737] text-blue-300"
+                                : "border-[#303548] bg-[#151922] text-[#94A3B8] hover:bg-[#1B2230] hover:text-[#E2E8F0]"
+                                }`}
+                            title="Deep"
+                        >
+                            <MoonStar size={14} />
+                        </button>
+                        <div className="mx-1 h-6 w-px bg-[#252B39]" />
+                        <button
+                            type="button"
+                            onClick={handleZoomOut}
+                            className="rounded-md p-1.5 text-[#94A3B8] transition-colors hover:bg-[#151922] hover:text-[#E2E8F0]"
+                            title="Zoom Out"
+                        >
+                            <ZoomOut size={13} />
+                        </button>
+                        <span className="w-10 text-center text-[10px] font-semibold text-[#CBD5E1]">{(zoom * 100).toFixed(0)}%</span>
+                        <button
+                            type="button"
+                            onClick={handleZoomIn}
+                            className="rounded-md p-1.5 text-[#94A3B8] transition-colors hover:bg-[#151922] hover:text-[#E2E8F0]"
+                            title="Zoom In"
+                        >
+                            <ZoomIn size={13} />
+                        </button>
+                    </div>
                 </div>
 
-                <div className="ml-2 flex shrink-0 items-center gap-1.5">
-                    <SystemButton onClick={handleToggleGrid} icon={Grid3X3} label="Grid" active={isGridVisible} />
-                    <SystemButton onClick={handleToggleDeepCanvasMode} icon={MoonStar} label="Deep" active={isDeepCanvasMode} />
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
                     <SystemButton onClick={handleNewProject} icon={Sparkles} label="New" tone="default" />
-                    <SystemButton onClick={handleImportButtonClick} icon={FolderOpen} label="불러오기 (.vge)" />
-                    <SystemButton onClick={handleExportVGE} icon={Save} label="백업 저장 (.vge)" />
-                    <SystemButton onClick={handleExportJSON} icon={Sparkles} label="AI 전달용 (.json)" />
                     <SystemButton onClick={() => setIsDashboardOpen(true)} icon={FolderOpen} label="Projects" />
                     <SystemButton onClick={handleShareToCloud} icon={Save} label={isSharing ? "Saving" : "Save"} disabled={isSharing} />
-                    <SystemButton onClick={handleClearAll} icon={Square} label="Clear" tone="danger" />
-                    <SystemButton onClick={handleFocusRecentWork} icon={ChevronRight} label="Recent" disabled={!hasRecentWork} />
-                    {isAdmin ? (
-                        <>
-                            <SystemButton
-                                icon={ShieldCheck}
-                                label={adminEmail === "nam9295@gmail.com" ? "Admin" : "Signed In"}
-                                active
-                            />
-                            <SystemButton onClick={handleLogout} icon={LogOut} label="Logout" />
-                        </>
-                    ) : (
-                        <SystemButton onClick={handleGoogleLogin} icon={LogIn} label="Google" />
-                    )}
-                    <div className="mx-0.5 flex shrink-0 items-center gap-1 border border-[#3B4252] bg-[#1E2129] px-1.5 py-1 text-[#94A3B8] shadow-[2px_2px_0px_0px_#000]">
-                        <button className="rounded p-0.5 transition-colors hover:bg-[#232734]" title="Zoom Out">
-                            <ZoomOut size={12} />
+                    <div ref={fileMenuRef} className="relative shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsFileMenuOpen((prev) => !prev);
+                                setIsAccountMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2 rounded-lg border border-[#303548] bg-[#151922] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#E2E8F0] transition-colors hover:bg-[#1B2230]"
+                        >
+                            <Menu size={13} />
+                            <span>File</span>
+                            <ChevronDown size={13} className={`transition-transform ${isFileMenuOpen ? "rotate-180" : ""}`} />
                         </button>
-                        <span className="w-10 text-center text-[10px] font-semibold">{(zoom * 100).toFixed(0)}%</span>
-                        <button className="rounded p-0.5 transition-colors hover:bg-[#232734]" title="Zoom In">
-                            <ZoomIn size={12} />
-                        </button>
+
+                        {isFileMenuOpen && (
+                            <div className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[220px] rounded-xl border border-[#303548] bg-[#11161F] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+                                <DropdownItem
+                                    icon={Sparkles}
+                                    label="New"
+                                    onClick={() => {
+                                        setIsFileMenuOpen(false);
+                                        handleNewProject();
+                                    }}
+                                />
+                                <DropdownItem icon={FolderOpen} label="불러오기 (.vge)" onClick={handleImportButtonClick} />
+                                <DropdownItem icon={Save} label="백업 저장 (.vge)" onClick={handleExportVGE} />
+                                <DropdownItem icon={Sparkles} label="AI 전달용 (.json)" onClick={handleExportJSON} />
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
 
             {shareMessage && (
-                <div className="pointer-events-none absolute right-4 top-16 z-40 border border-[#3B4252] bg-[#181A20]/95 px-3 py-1 text-[11px] text-[#E2E8F0] shadow-[4px_4px_0px_0px_#000]">
+                <div className="pointer-events-none absolute right-4 top-[4.25rem] z-40 rounded-lg border border-[#303548] bg-[#10151D]/95 px-3 py-1.5 text-[11px] text-[#E2E8F0] shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
                     {shareMessage}
                 </div>
             )}
