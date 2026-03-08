@@ -1,6 +1,13 @@
 self.__BUILD_MANIFEST = {
   "__rewrites": {
-    "afterFiles": [],
+    "afterFiles": [
+      {
+        "source": "/__/auth/:path*"
+      },
+      {
+        "source": "/__/firebase/:path*"
+      }
+    ],
     "beforeFiles": [],
     "fallback": []
   },

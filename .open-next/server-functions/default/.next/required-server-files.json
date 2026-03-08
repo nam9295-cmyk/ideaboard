@@ -296,7 +296,21 @@
     "turbopack": {
       "root": "/Users/nam9295/Desktop/john_2.0/code/asmemo"
     },
-    "distDirRoot": ".next"
+    "distDirRoot": ".next",
+    "_originalRewrites": {
+      "beforeFiles": [],
+      "afterFiles": [
+        {
+          "source": "/__/auth/:path*",
+          "destination": "https://john-idea-6494f.firebaseapp.com/__/auth/:path*"
+        },
+        {
+          "source": "/__/firebase/:path*",
+          "destination": "https://john-idea-6494f.firebaseapp.com/__/firebase/:path*"
+        }
+      ],
+      "fallback": []
+    }
   },
   "appDir": "/Users/nam9295/Desktop/john_2.0/code/asmemo",
   "relativeAppDir": "",

@@ -8,6 +8,8 @@ import {
     Eraser,
     FolderOpen,
     Grid3X3,
+    LogIn,
+    LogOut,
     Minus,
     MousePointer2,
     MoonStar,
@@ -18,6 +20,7 @@ import {
     Square,
     Type,
     LayoutTemplate,
+    ShieldCheck,
     ZoomIn,
     ZoomOut,
 } from "lucide-react";
@@ -42,6 +45,8 @@ export default function Toolbar() {
     const {
         zoom,
         setPan,
+        isAdmin,
+        adminEmail,
         activeGroupId,
         setActiveGroupId,
         nodes,
@@ -53,6 +58,8 @@ export default function Toolbar() {
         setToolMode,
         newProject,
         saveToCloud,
+        handleGoogleLogin,
+        handleLogout,
     } = useEditor();
     const [hasRecentWork, setHasRecentWork] = useState(false);
     const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -153,6 +160,10 @@ export default function Toolbar() {
             const boardId = await saveToCloud();
             if (!boardId) {
                 setShareMessage("Save cancelled");
+                return;
+            }
+            if (boardId === "guest-local") {
+                setShareMessage("Saved locally");
                 return;
             }
             setShareMessage(`Saved (${boardId})`);
@@ -284,6 +295,18 @@ export default function Toolbar() {
                     <SystemButton onClick={handleShareToCloud} icon={Save} label={isSharing ? "Saving" : "Save"} disabled={isSharing} />
                     <SystemButton onClick={handleClearAll} icon={Square} label="Clear" tone="danger" />
                     <SystemButton onClick={handleFocusRecentWork} icon={ChevronRight} label="Recent" disabled={!hasRecentWork} />
+                    {isAdmin ? (
+                        <>
+                            <SystemButton
+                                icon={ShieldCheck}
+                                label={adminEmail === "nam9295@gmail.com" ? "Admin" : "Signed In"}
+                                active
+                            />
+                            <SystemButton onClick={handleLogout} icon={LogOut} label="Logout" />
+                        </>
+                    ) : (
+                        <SystemButton onClick={handleGoogleLogin} icon={LogIn} label="Google" />
+                    )}
                     <div className="mx-0.5 flex shrink-0 items-center gap-1 border border-[#3B4252] bg-[#1E2129] px-1.5 py-1 text-[#94A3B8] shadow-[2px_2px_0px_0px_#000]">
                         <button className="rounded p-0.5 transition-colors hover:bg-[#232734]" title="Zoom Out">
                             <ZoomOut size={12} />

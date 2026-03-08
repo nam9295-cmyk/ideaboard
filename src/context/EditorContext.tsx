@@ -7,6 +7,8 @@ import { loadFrames, saveFrames } from "@/utils/storage";
 interface EditorState {
     nodes: CanvasNode[];
     selectedNodeIds: string[];
+    isAdmin: boolean;
+    adminEmail: string | null;
     currentCloudBoardId: string | null;
     currentCloudBoardTitle: string | null;
     zoom: number;
@@ -42,6 +44,8 @@ interface EditorState {
     removePaint: (key: string, skipHistory?: boolean) => void;
     saveToCloud: () => Promise<string | null>;
     openCloudBoard: (id: string) => Promise<boolean>;
+    handleGoogleLogin: () => Promise<void>;
+    handleLogout: () => Promise<void>;
     newProject: () => void;
 
     // History
@@ -57,12 +61,18 @@ interface Snapshot {
 }
 
 const EditorContext = createContext<EditorState | undefined>(undefined);
+const ADMIN_EMAIL = "nam9295@gmail.com";
 
 export function EditorProvider({ children }: { children: ReactNode }) {
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
     const [nodes, setNodes] = useState<CanvasNode[]>([]);
     const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+    const [isAdmin, setIsAdmin] = useState(() => {
+        if (typeof window === "undefined") return false;
+        return localStorage.getItem("isAdmin") === "true";
+    });
+    const [adminEmail, setAdminEmail] = useState<string | null>(null);
     const [currentCloudBoardId, setCurrentCloudBoardId] = useState<string | null>(null);
     const [currentCloudBoardTitle, setCurrentCloudBoardTitle] = useState<string | null>(null);
     const [toolMode, setToolMode] = useState<ToolMode>('select');
@@ -89,6 +99,20 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             doc: firestore.doc,
             getDoc: firestore.getDoc,
             setDoc: firestore.setDoc,
+        };
+    };
+    const getAuthClient = async () => {
+        const [{ auth, googleProvider }, firebaseAuth] = await Promise.all([
+            import("@/lib/firebase"),
+            import("firebase/auth"),
+        ]);
+
+        return {
+            auth,
+            googleProvider,
+            signInWithPopup: firebaseAuth.signInWithPopup,
+            signOut: firebaseAuth.signOut,
+            onAuthStateChanged: firebaseAuth.onAuthStateChanged,
         };
     };
     const sanitizeForFirestore = (value: unknown): unknown => {
@@ -193,7 +217,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 ? new URLSearchParams(window.location.search).get("id")
                 : null;
 
-            if (boardId) {
+            if (boardId && isAdmin) {
                 try {
                     const loadedFromCloud = await loadCloudBoard(boardId);
                     if (loadedFromCloud || isCancelled) {
@@ -220,6 +244,34 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
         return () => {
             isCancelled = true;
+        };
+    }, [isAdmin]);
+
+    useEffect(() => {
+        let unsubscribe: (() => void) | undefined;
+
+        const syncAuthState = async () => {
+            const { auth, onAuthStateChanged } = await getAuthClient();
+            unsubscribe = onAuthStateChanged(auth, (user) => {
+                const nextEmail = user?.email ?? null;
+                const nextIsAdmin = nextEmail === ADMIN_EMAIL;
+                setAdminEmail(nextEmail);
+                setIsAdmin(nextIsAdmin);
+
+                if (typeof window !== "undefined") {
+                    if (nextIsAdmin) {
+                        localStorage.setItem("isAdmin", "true");
+                    } else {
+                        localStorage.removeItem("isAdmin");
+                    }
+                }
+            });
+        };
+
+        syncAuthState();
+
+        return () => {
+            unsubscribe?.();
         };
     }, []);
 
@@ -428,6 +480,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     };
 
     const openCloudBoard = async (id: string) => {
+        if (!isAdmin) return false;
         const loaded = await loadCloudBoard(id);
         if (!loaded) return false;
 
@@ -441,6 +494,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     };
 
     const saveToCloud = async () => {
+        if (!isAdmin) {
+            saveFrames(nodes);
+            if (typeof window !== "undefined") {
+                localStorage.setItem("asmemo_guest_last_saved_at", new Date().toISOString());
+            }
+            return "guest-local";
+        }
+
         const nextId = currentCloudBoardId ?? crypto.randomUUID().replace(/-/g, "").slice(0, 12);
         let nextTitle = currentCloudBoardTitle;
 
@@ -483,6 +544,58 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         return nextId;
     };
 
+    const handleGoogleLogin = async () => {
+        try {
+            const { auth, googleProvider, signInWithPopup, signOut } = await getAuthClient();
+            const result = await signInWithPopup(auth, googleProvider);
+            const email = result.user.email ?? "";
+
+            if (email === ADMIN_EMAIL) {
+                setIsAdmin(true);
+                setAdminEmail(email);
+                if (typeof window !== "undefined") {
+                    localStorage.setItem("isAdmin", "true");
+                    window.alert("관리자 모드로 연결되었습니다.");
+                }
+                return;
+            }
+
+            await signOut(auth);
+            setIsAdmin(false);
+            setAdminEmail(null);
+            if (typeof window !== "undefined") {
+                localStorage.removeItem("isAdmin");
+                window.alert("관리자 전용입니다. 방문자 모드(로컬 저장)로 사용됩니다.");
+            }
+        } catch (error) {
+            console.error("Google login failed", error);
+            setIsAdmin(false);
+            setAdminEmail(null);
+            if (typeof window !== "undefined") {
+                localStorage.removeItem("isAdmin");
+                window.alert("구글 로그인에 실패했습니다. 방문자 모드(로컬 저장)로 사용됩니다.");
+            }
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            const { auth, signOut } = await getAuthClient();
+            await signOut(auth);
+        } catch (error) {
+            console.error("Logout failed", error);
+        } finally {
+            setIsAdmin(false);
+            setAdminEmail(null);
+            setCurrentCloudBoardId(null);
+            setCurrentCloudBoardTitle(null);
+
+            if (typeof window !== "undefined") {
+                localStorage.removeItem("isAdmin");
+            }
+        }
+    };
+
     const newProject = () => {
         setNodes([]);
         setSelectedNodeIds([]);
@@ -502,6 +615,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         <EditorContext.Provider
             value={{
                 nodes,
+                isAdmin,
+                adminEmail,
                 currentCloudBoardId,
                 currentCloudBoardTitle,
                 zoom,
@@ -536,6 +651,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 removePaint,
                 saveToCloud,
                 openCloudBoard,
+                handleGoogleLogin,
+                handleLogout,
                 newProject,
                 history,
                 pushSnapshot,
