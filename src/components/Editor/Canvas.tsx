@@ -82,6 +82,7 @@ export default function Canvas() {
     const [editingTextareaHeight, setEditingTextareaHeight] = useState(28);
     const [isResizingText, setIsResizingText] = useState(false);
     const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+    const fileDragDepthRef = useRef(0);
     const textResizeRef = useRef<{
         nodeId: string;
         startX: number;
@@ -972,6 +973,9 @@ export default function Canvas() {
                 const { nodeId, startX, startY, initialX, initialY, initialWidth, initialHeight, direction } = imageResizeRef.current;
                 const deltaWorldX = (e.clientX - startX) / zoom;
                 const deltaWorldY = (e.clientY - startY) / zoom;
+                const currentImage = nodes.find((node): node is Extract<CanvasNode, { type: 'IMAGE' }> => node.id === nodeId && node.type === "IMAGE");
+                const lockAspectRatio = e.shiftKey && ((currentImage?.fit || "cover") === "cover");
+                const aspectRatio = initialWidth / Math.max(initialHeight, 1);
 
                 if (!imageResizeRef.current.historyRecorded) {
                     pushSnapshot();
@@ -996,6 +1000,31 @@ export default function Canvas() {
                 if (direction.includes("n")) {
                     nextHeight = Math.max(IMAGE_MIN_HEIGHT, initialHeight - deltaWorldY);
                     nextY = initialY + (initialHeight - nextHeight);
+                }
+
+                if (lockAspectRatio) {
+                    const isCornerHandle = direction.length === 2;
+
+                    if (isCornerHandle) {
+                        if (Math.abs(deltaWorldX) >= Math.abs(deltaWorldY)) {
+                            nextHeight = Math.max(IMAGE_MIN_HEIGHT, nextWidth / aspectRatio);
+                        } else {
+                            nextWidth = Math.max(IMAGE_MIN_WIDTH, nextHeight * aspectRatio);
+                        }
+                    } else if (direction === "e" || direction === "w") {
+                        nextHeight = Math.max(IMAGE_MIN_HEIGHT, nextWidth / aspectRatio);
+                        nextY = initialY + (initialHeight - nextHeight) / 2;
+                    } else if (direction === "n" || direction === "s") {
+                        nextWidth = Math.max(IMAGE_MIN_WIDTH, nextHeight * aspectRatio);
+                        nextX = initialX + (initialWidth - nextWidth) / 2;
+                    }
+
+                    if (direction.includes("w")) {
+                        nextX = initialX + (initialWidth - nextWidth);
+                    }
+                    if (direction.includes("n")) {
+                        nextY = initialY + (initialHeight - nextHeight);
+                    }
                 }
 
                 updateNode(nodeId, {
@@ -1528,25 +1557,68 @@ export default function Canvas() {
         };
     }, [setZoom, setPan]);
 
+    const isImageDragEvent = (dataTransfer: DataTransfer | null) => {
+        if (!dataTransfer) return false;
+
+        const itemList = Array.from(dataTransfer.items || []);
+        if (itemList.some((item) => item.kind === "file" && item.type.startsWith("image/"))) {
+            return true;
+        }
+
+        const typeList = Array.from(dataTransfer.types || []);
+        return typeList.includes("Files");
+    };
+
+    useEffect(() => {
+        const preventBrowserFileOpen = (event: DragEvent) => {
+            if (!isImageDragEvent(event.dataTransfer)) return;
+            event.preventDefault();
+        };
+
+        window.addEventListener("dragover", preventBrowserFileOpen);
+        window.addEventListener("drop", preventBrowserFileOpen);
+
+        return () => {
+            window.removeEventListener("dragover", preventBrowserFileOpen);
+            window.removeEventListener("drop", preventBrowserFileOpen);
+        };
+    }, []);
+
+    const handleCanvasDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+        if (!isImageDragEvent(e.dataTransfer)) return;
+        e.preventDefault();
+        fileDragDepthRef.current += 1;
+        setIsDraggingFiles(true);
+    };
+
     const handleCanvasDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        const hasImage = Array.from(e.dataTransfer?.files || []).some((file) => file.type.startsWith("image/"));
-        if (!hasImage) return;
+        if (!isImageDragEvent(e.dataTransfer)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
         setIsDraggingFiles(true);
     };
 
     const handleCanvasDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-        setIsDraggingFiles(false);
+        if (!isImageDragEvent(e.dataTransfer)) return;
+        e.preventDefault();
+        fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
+        if (fileDragDepthRef.current === 0) {
+            setIsDraggingFiles(false);
+        }
     };
 
     const handleCanvasDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-        const file = Array.from(e.dataTransfer?.files || []).find((candidate) => candidate.type.startsWith("image/"));
-        setIsDraggingFiles(false);
-        if (!file) return;
-
         e.preventDefault();
+        fileDragDepthRef.current = 0;
+        setIsDraggingFiles(false);
+
+        const fileFromItems = Array.from(e.dataTransfer?.items || [])
+            .find((item) => item.kind === "file" && item.type.startsWith("image/"))
+            ?.getAsFile();
+        const fileFromFiles = Array.from(e.dataTransfer?.files || [])
+            .find((candidate) => candidate.type.startsWith("image/"));
+        const file = fileFromItems || fileFromFiles;
+        if (!file) return;
 
         const container = containerRef.current;
         if (!container) return;
@@ -1571,6 +1643,7 @@ export default function Canvas() {
             ref={containerRef}
             className={`absolute inset-0 overflow-hidden ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
             style={{ backgroundColor: isDeepCanvasMode ? "#17191F" : "#22242B" }}
+            onDragEnter={handleCanvasDragEnter}
             onDragOver={handleCanvasDragOver}
             onDragLeave={handleCanvasDragLeave}
             onDrop={handleCanvasDrop}
