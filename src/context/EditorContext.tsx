@@ -103,6 +103,8 @@ type WindowWithSavePicker = Window & {
 const IMAGE_DEFAULT_MAX_DIMENSION = 420;
 const IMAGE_DEFAULT_MIN_WIDTH = 180;
 const IMAGE_DEFAULT_MIN_HEIGHT = 120;
+const IMAGE_UPLOAD_MAX_DIMENSION = 1600;
+const IMAGE_UPLOAD_QUALITY = 0.82;
 
 export function EditorProvider({ children }: { children: ReactNode }) {
     const [zoom, setZoom] = useState(1);
@@ -262,6 +264,74 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         image.onerror = () => {
             URL.revokeObjectURL(objectUrl);
             resolve({ width: 320, height: 200 });
+        };
+
+        image.src = objectUrl;
+    });
+    const optimizeImageForUpload = (file: File) => new Promise<File>(async (resolve) => {
+        if (typeof window === "undefined") {
+            resolve(file);
+            return;
+        }
+
+        if (
+            file.type === "image/gif" ||
+            file.type === "image/svg+xml"
+        ) {
+            resolve(file);
+            return;
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        const image = new window.Image();
+
+        image.onload = async () => {
+            try {
+                const rawWidth = image.naturalWidth || 0;
+                const rawHeight = image.naturalHeight || 0;
+                if (!rawWidth || !rawHeight) {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(file);
+                    return;
+                }
+
+                const scale = Math.min(1, IMAGE_UPLOAD_MAX_DIMENSION / Math.max(rawWidth, rawHeight));
+                const targetWidth = Math.max(1, Math.round(rawWidth * scale));
+                const targetHeight = Math.max(1, Math.round(rawHeight * scale));
+                const canvas = document.createElement("canvas");
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                const context = canvas.getContext("2d");
+
+                if (!context) {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(file);
+                    return;
+                }
+
+                context.drawImage(image, 0, 0, targetWidth, targetHeight);
+                const blob = await new Promise<Blob | null>((blobResolve) => {
+                    canvas.toBlob(blobResolve, "image/webp", IMAGE_UPLOAD_QUALITY);
+                });
+
+                URL.revokeObjectURL(objectUrl);
+
+                if (!blob) {
+                    resolve(file);
+                    return;
+                }
+
+                const nextName = file.name.replace(/\.[^.]+$/, "") || "image";
+                resolve(new File([blob], `${nextName}.webp`, { type: "image/webp" }));
+            } catch {
+                URL.revokeObjectURL(objectUrl);
+                resolve(file);
+            }
+        };
+
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(file);
         };
 
         image.src = objectUrl;
@@ -804,11 +874,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             return false;
         }
 
-        const imageSize = await loadImageSize(file);
+        const optimizedFile = await optimizeImageForUpload(file);
+        const imageSize = await loadImageSize(optimizedFile);
         const uploadedFile = await storage.createFile(
             APPWRITE_UPLOADS_BUCKET_ID,
             ID.unique(),
-            file,
+            optimizedFile,
             [
                 Permission.read(Role.user(adminUserId)),
                 Permission.update(Role.user(adminUserId)),
@@ -830,7 +901,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             fileId: uploadedFile.$id,
             imageUrl,
             fit: "cover",
-            name: uploadedFile.name || file.name || "Image",
+            name: uploadedFile.name || optimizedFile.name || file.name || "Image",
         });
 
         return true;
