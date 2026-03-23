@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Query } from "appwrite";
 import { FolderOpen, Loader2, X } from "lucide-react";
 import { useEditor } from "@/context/EditorContext";
+import { APPWRITE_BOARDS_COLLECTION_ID, APPWRITE_DATABASE_ID, tablesDB } from "@/lib/appwrite";
 
 type ProjectSummary = {
     id: string;
@@ -17,7 +19,7 @@ export default function DashboardModal({
     isOpen: boolean;
     onClose: () => void;
 }) {
-    const { openCloudBoard, currentCloudBoardId, isAdmin } = useEditor();
+    const { openCloudBoard, currentCloudBoardId, isAdmin, adminEmail } = useEditor();
     const [projects, setProjects] = useState<ProjectSummary[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isOpening, setIsOpening] = useState<string | null>(null);
@@ -38,18 +40,22 @@ export default function DashboardModal({
             setError(null);
 
             try {
-                const [{ db }, firestore] = await Promise.all([
-                    import("@/lib/firebase"),
-                    import("firebase/firestore/lite"),
-                ]);
-                const snapshot = await firestore.getDocs(firestore.collection(db, "ideaboards"));
-                const nextProjects = snapshot.docs
+                const queries = [Query.orderDesc("$updatedAt")];
+                if (adminEmail) {
+                    queries.unshift(Query.equal("ownerEmail", [adminEmail]));
+                }
+                const snapshot = await tablesDB.listRows(
+                    APPWRITE_DATABASE_ID,
+                    APPWRITE_BOARDS_COLLECTION_ID,
+                    queries,
+                );
+                const nextProjects = snapshot.rows
                     .map((item) => {
-                        const data = item.data();
+                        const data = item as typeof item & { title?: string };
                         return {
-                            id: item.id,
+                            id: item.$id,
                             title: typeof data.title === "string" && data.title.trim() ? data.title : "Untitled",
-                            updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : "",
+                            updatedAt: item.$updatedAt || "",
                         };
                     })
                     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -74,7 +80,7 @@ export default function DashboardModal({
         return () => {
             isCancelled = true;
         };
-    }, [isOpen, isAdmin]);
+    }, [isOpen, isAdmin, adminEmail]);
 
     if (!isOpen) return null;
 
