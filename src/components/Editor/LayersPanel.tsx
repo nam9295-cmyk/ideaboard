@@ -3,7 +3,7 @@
 import { useEditor } from "@/context/EditorContext";
 import { CanvasNode } from "@/types";
 import { useEffect, useState } from "react";
-import { Layout, Box, Type, Square, Minus, ArrowRight, RectangleHorizontal, LayoutTemplate, PenTool, LayoutDashboard, Eye, EyeOff, Lock, Unlock, ChevronRight, ChevronDown, ChevronLeft } from "lucide-react";
+import { Layout, Box, Type, Square, Minus, ArrowRight, RectangleHorizontal, LayoutTemplate, PenTool, LayoutDashboard, Eye, EyeOff, Lock, Unlock, ChevronRight, ChevronDown, ChevronLeft, Image as ImageIcon } from "lucide-react";
 
 export default function LayersPanel() {
     const { nodes, selectedNodeIds, selectNode, paintLayer, paintLayerVisible, setPaintLayerVisible, updateNode, reorderNode, groupNodes, ungroupNodes, activeGroupId, setActiveGroupId, setSelection } = useEditor();
@@ -108,6 +108,7 @@ export default function LayersPanel() {
             case 'GROUP': return LayoutDashboard;
             case 'TEXT': return Type;
             case 'BOX': return Square;
+            case 'IMAGE': return ImageIcon;
             case 'LINE': return Minus;
             case 'ARROW': return ArrowRight;
             case 'BUTTON': return RectangleHorizontal;

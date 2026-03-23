@@ -467,6 +467,39 @@ export default function Inspector() {
                     </>
                 )}
 
+                {selectedNode.type === 'IMAGE' && (
+                    <>
+                        <div>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Image Fit</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => updateNode(selectedNode.id, { fit: "cover" } as any)}
+                                    className={`rounded border px-3 py-2 text-sm ${((selectedNode as any).fit || "cover") === "cover" ? "border-blue-500 bg-[#232734] text-blue-300" : "border-[#3B4252] bg-[#1E2129] text-[#CBD5E1]"}`}
+                                >
+                                    Cover
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => updateNode(selectedNode.id, { fit: "contain" } as any)}
+                                    className={`rounded border px-3 py-2 text-sm ${((selectedNode as any).fit || "cover") === "contain" ? "border-blue-500 bg-[#232734] text-blue-300" : "border-[#3B4252] bg-[#1E2129] text-[#CBD5E1]"}`}
+                                >
+                                    Contain
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-[#94A3B8] mb-2 block">File</label>
+                            <input
+                                type="text"
+                                value={(selectedNode as any).name || (selectedNode as any).fileId || ""}
+                                className="w-full text-sm border border-[#3B4252] bg-[#1E2129] rounded px-2 py-1 outline-none text-[#E2E8F0]"
+                                readOnly
+                            />
+                        </div>
+                    </>
+                )}
+
                 {selectedNode.type === 'BOX' && (
                     <div>
                         <label className="text-xs font-medium text-[#94A3B8] mb-2 block">Fill</label>

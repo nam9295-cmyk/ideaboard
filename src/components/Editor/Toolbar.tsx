@@ -9,6 +9,7 @@ import {
     Eraser,
     FolderOpen,
     Grid3X3,
+    Image as ImageIcon,
     LogIn,
     LogOut,
     Minus,
@@ -62,6 +63,7 @@ export default function Toolbar() {
         exportVGE,
         exportJSON,
         importVGE,
+        uploadImageToCanvas,
         handleGoogleLogin,
         handleLogout,
     } = useEditor();
@@ -72,6 +74,7 @@ export default function Toolbar() {
     const [isGridVisible, setIsGridVisible] = useState(true);
     const [isDeepCanvasMode, setIsDeepCanvasMode] = useState(false);
     const importInputRef = useRef<HTMLInputElement | null>(null);
+    const imageInputRef = useRef<HTMLInputElement | null>(null);
     const fileMenuRef = useRef<HTMLDivElement | null>(null);
     const accountMenuRef = useRef<HTMLDivElement | null>(null);
     const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
@@ -218,6 +221,11 @@ export default function Toolbar() {
         importInputRef.current?.click();
     };
 
+    const handleImageButtonClick = () => {
+        setIsFileMenuOpen(false);
+        imageInputRef.current?.click();
+    };
+
     const handleImportChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         event.target.value = "";
@@ -226,6 +234,22 @@ export default function Toolbar() {
         const imported = await importVGE(file);
         if (imported) {
             showActionMessage(`Imported (${file.name})`);
+        }
+    };
+
+    const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+
+        try {
+            const uploaded = await uploadImageToCanvas(file);
+            if (uploaded) {
+                showActionMessage(`Image added (${file.name})`);
+            }
+        } catch (error) {
+            console.error("Failed to upload image", error);
+            showActionMessage(error instanceof Error ? `이미지 업로드 실패: ${error.message}` : "이미지 업로드 실패");
         }
     };
 
@@ -353,6 +377,13 @@ export default function Toolbar() {
                 accept=".vge"
                 className="hidden"
                 onChange={handleImportChange}
+            />
+            <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageChange}
             />
             <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[#2A3040] bg-[#12161F] px-4 text-[#E2E8F0]">
                 <div className="flex min-w-0 flex-1 items-center gap-3 overflow-visible">
@@ -503,6 +534,7 @@ export default function Toolbar() {
                                         handleNewProject();
                                     }}
                                 />
+                                <DropdownItem icon={ImageIcon} label="이미지 업로드" onClick={handleImageButtonClick} />
                                 <DropdownItem icon={FolderOpen} label="불러오기 (.vge)" onClick={handleImportButtonClick} />
                                 <DropdownItem icon={Save} label="백업 저장 (.vge)" onClick={handleExportVGE} />
                                 <DropdownItem icon={Sparkles} label="AI 전달용 (.json)" onClick={handleExportJSON} />

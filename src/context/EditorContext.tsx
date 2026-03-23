@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { Models } from "appwrite";
 import { CanvasNode, ToolMode } from "@/types";
 import { loadFrames, saveFrames } from "@/utils/storage";
-import { account, ADMIN_EMAIL, APPWRITE_BOARDS_COLLECTION_ID, APPWRITE_DATABASE_ID, tablesDB, ID, OAuthProvider, Permission, Role } from "@/lib/appwrite";
+import { account, ADMIN_EMAIL, APPWRITE_BOARDS_COLLECTION_ID, APPWRITE_DATABASE_ID, APPWRITE_UPLOADS_BUCKET_ID, storage, tablesDB, ID, OAuthProvider, Permission, Role } from "@/lib/appwrite";
 
 interface EditorState {
     nodes: CanvasNode[];
@@ -49,6 +49,7 @@ interface EditorState {
     exportVGE: () => Promise<boolean>;
     exportJSON: () => Promise<boolean>;
     importVGE: (file: File) => Promise<boolean>;
+    uploadImageToCanvas: (file: File, spawnPos?: { x: number; y: number }) => Promise<boolean>;
     handleGoogleLogin: () => Promise<void>;
     handleLogout: () => Promise<void>;
     newProject: () => void;
@@ -99,6 +100,9 @@ type WindowWithSavePicker = Window & {
         types: SaveDialogFileType[];
     }) => Promise<SaveDialogHandle>;
 };
+const IMAGE_DEFAULT_MAX_DIMENSION = 420;
+const IMAGE_DEFAULT_MIN_WIDTH = 180;
+const IMAGE_DEFAULT_MIN_HEIGHT = 120;
 
 export function EditorProvider({ children }: { children: ReactNode }) {
     const [zoom, setZoom] = useState(1);
@@ -234,6 +238,34 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         const importedEdges = Array.isArray(parsed.data.edges) ? parsed.data.edges : [];
         return [...parsed.data.nodes, ...importedEdges];
     };
+
+    const loadImageSize = (file: File) => new Promise<{ width: number; height: number }>((resolve) => {
+        if (typeof window === "undefined") {
+            resolve({ width: 320, height: 200 });
+            return;
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        const image = new window.Image();
+
+        image.onload = () => {
+            const rawWidth = image.naturalWidth || 320;
+            const rawHeight = image.naturalHeight || 200;
+            const scale = Math.min(1, IMAGE_DEFAULT_MAX_DIMENSION / Math.max(rawWidth, rawHeight));
+            URL.revokeObjectURL(objectUrl);
+            resolve({
+                width: Math.max(IMAGE_DEFAULT_MIN_WIDTH, Math.round(rawWidth * scale)),
+                height: Math.max(IMAGE_DEFAULT_MIN_HEIGHT, Math.round(rawHeight * scale)),
+            });
+        };
+
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve({ width: 320, height: 200 });
+        };
+
+        image.src = objectUrl;
+    });
 
     const loadCloudBoard = async (boardId: string) => {
         const document = await tablesDB.getRow<BoardDocument>(
@@ -757,6 +789,53 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const uploadImageToCanvas = async (file: File, spawnPos?: { x: number; y: number }) => {
+        if (!isAdmin || !adminUserId) {
+            if (typeof window !== "undefined") {
+                window.alert("이미지 업로드는 관리자 로그인 후 사용할 수 있습니다.");
+            }
+            return false;
+        }
+
+        if (!file.type.startsWith("image/")) {
+            if (typeof window !== "undefined") {
+                window.alert("이미지 파일만 업로드할 수 있습니다.");
+            }
+            return false;
+        }
+
+        const imageSize = await loadImageSize(file);
+        const uploadedFile = await storage.createFile(
+            APPWRITE_UPLOADS_BUCKET_ID,
+            ID.unique(),
+            file,
+            [
+                Permission.read(Role.user(adminUserId)),
+                Permission.update(Role.user(adminUserId)),
+                Permission.delete(Role.user(adminUserId)),
+            ],
+        );
+        const imageUrl = storage.getFileView(APPWRITE_UPLOADS_BUCKET_ID, uploadedFile.$id);
+        const spawnOffset = Math.min(nodes.length, 6) * 24;
+        const fallbackX = 120 + spawnOffset;
+        const fallbackY = 120 + spawnOffset;
+
+        addNode({
+            id: crypto.randomUUID(),
+            type: "IMAGE",
+            x: spawnPos?.x ?? fallbackX,
+            y: spawnPos?.y ?? fallbackY,
+            width: imageSize.width,
+            height: imageSize.height,
+            fileId: uploadedFile.$id,
+            imageUrl,
+            fit: "cover",
+            name: uploadedFile.name || file.name || "Image",
+        });
+
+        return true;
+    };
+
     const handleGoogleLogin = async () => {
         try {
             if (typeof window === "undefined") return;
@@ -845,6 +924,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
                 exportVGE,
                 exportJSON,
                 importVGE,
+                uploadImageToCanvas,
                 handleGoogleLogin,
                 handleLogout,
                 newProject,

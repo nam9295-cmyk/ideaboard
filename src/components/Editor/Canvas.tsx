@@ -9,7 +9,7 @@ import DimOverlay from "./DimOverlay";
 import { CanvasNode } from "@/types";
 
 export default function Canvas() {
-    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, addNodes, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
+    const { nodes, selectedNodeIds, selectNode, toggleSelection, setSelection, updateNode, updateMultipleNodes, deleteNode, deleteNodes, groupNodes, ungroupNodes, addNode, addNodes, uploadImageToCanvas, toolMode, setToolMode, gridSize, paintLayer, paintLayerVisible, addPaint, removePaint, undo, redo, pushSnapshot, activeGroupId, setActiveGroupId } = useEditor();
     const {
         zoom,
         pan,
@@ -81,7 +81,20 @@ export default function Canvas() {
     const [editingTextareaWidth, setEditingTextareaWidth] = useState(60);
     const [editingTextareaHeight, setEditingTextareaHeight] = useState(28);
     const [isResizingText, setIsResizingText] = useState(false);
+    const [isDraggingFiles, setIsDraggingFiles] = useState(false);
     const textResizeRef = useRef<{
+        nodeId: string;
+        startX: number;
+        startY: number;
+        initialX: number;
+        initialY: number;
+        initialWidth: number;
+        initialHeight: number;
+        direction: "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+        historyRecorded?: boolean;
+    } | null>(null);
+    const [isResizingImage, setIsResizingImage] = useState(false);
+    const imageResizeRef = useRef<{
         nodeId: string;
         startX: number;
         startY: number;
@@ -100,6 +113,9 @@ export default function Canvas() {
     const TEXT_BOX_MIN_WIDTH = 80;
     const TEXT_BOX_MIN_HEIGHT = 36;
     const TEXT_RESIZE_HANDLE_SIZE = 10;
+    const IMAGE_MIN_WIDTH = 80;
+    const IMAGE_MIN_HEIGHT = 80;
+    const IMAGE_RESIZE_HANDLE_SIZE = 10;
     const TEXT_LINE_HEIGHT = 1.4;
     const FONT_FAMILY_MAP: Record<string, string> = {
         "JetBrains Mono": 'var(--font-jetbrains-mono), "JetBrains Mono", monospace',
@@ -787,6 +803,28 @@ export default function Canvas() {
             direction,
         };
     };
+    const startImageResize = (
+        e: React.PointerEvent,
+        node: Extract<CanvasNode, { type: 'IMAGE' }>,
+        direction: "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
+    ) => {
+        if (node.locked) return;
+        e.stopPropagation();
+        e.preventDefault();
+
+        selectNode(node.id);
+        setIsResizingImage(true);
+        imageResizeRef.current = {
+            nodeId: node.id,
+            startX: e.clientX,
+            startY: e.clientY,
+            initialX: node.x,
+            initialY: node.y,
+            initialWidth: node.width,
+            initialHeight: node.height,
+            direction,
+        };
+    };
 
     // Save Text
     const saveText = () => {
@@ -918,6 +956,45 @@ export default function Canvas() {
                 }
                 if (direction.includes("n")) {
                     nextHeight = Math.max(TEXT_BOX_MIN_HEIGHT, initialHeight - deltaWorldY);
+                    nextY = initialY + (initialHeight - nextHeight);
+                }
+
+                updateNode(nodeId, {
+                    x: nextX,
+                    y: nextY,
+                    width: nextWidth,
+                    height: nextHeight,
+                }, true);
+                return;
+            }
+
+            if (imageResizeRef.current && isResizingImage) {
+                const { nodeId, startX, startY, initialX, initialY, initialWidth, initialHeight, direction } = imageResizeRef.current;
+                const deltaWorldX = (e.clientX - startX) / zoom;
+                const deltaWorldY = (e.clientY - startY) / zoom;
+
+                if (!imageResizeRef.current.historyRecorded) {
+                    pushSnapshot();
+                    imageResizeRef.current.historyRecorded = true;
+                }
+
+                let nextX = initialX;
+                let nextY = initialY;
+                let nextWidth = initialWidth;
+                let nextHeight = initialHeight;
+
+                if (direction.includes("e")) {
+                    nextWidth = Math.max(IMAGE_MIN_WIDTH, initialWidth + deltaWorldX);
+                }
+                if (direction.includes("s")) {
+                    nextHeight = Math.max(IMAGE_MIN_HEIGHT, initialHeight + deltaWorldY);
+                }
+                if (direction.includes("w")) {
+                    nextWidth = Math.max(IMAGE_MIN_WIDTH, initialWidth - deltaWorldX);
+                    nextX = initialX + (initialWidth - nextWidth);
+                }
+                if (direction.includes("n")) {
+                    nextHeight = Math.max(IMAGE_MIN_HEIGHT, initialHeight - deltaWorldY);
                     nextY = initialY + (initialHeight - nextHeight);
                 }
 
@@ -1239,6 +1316,10 @@ export default function Canvas() {
                 textResizeRef.current = null;
                 setIsResizingText(false);
             }
+            if (imageResizeRef.current) {
+                imageResizeRef.current = null;
+                setIsResizingImage(false);
+            }
             if (dragRef.current) {
                 const draggedNode = nodes.find((node) => node.id === dragRef.current?.nodeId);
                 if (draggedNode && draggedNode.type !== 'LINE' && draggedNode.type !== 'ARROW') {
@@ -1382,7 +1463,7 @@ export default function Canvas() {
             }
         };
 
-        if (isDraggingNode || drawingNodeId || boxStartPos || isPainting || isSelecting || isResizingText) {
+        if (isDraggingNode || drawingNodeId || boxStartPos || isPainting || isSelecting || isResizingText || isResizingImage) {
             console.log("Attaching event listeners. isDraggingNode:", isDraggingNode);
             window.addEventListener("pointermove", handlePointerMove);
             window.addEventListener("pointerup", handlePointerUp);
@@ -1392,7 +1473,7 @@ export default function Canvas() {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
         };
-    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, updateMultipleNodes, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection, dragRef, activeGroupId, pushSnapshot, isResizingText]);
+    }, [isDraggingNode, drawingNodeId, zoom, pan, updateNode, updateMultipleNodes, setToolMode, boxStartPos, currentMousePos, gridSize, addNode, drawingStartPos, isPainting, toolMode, addPaint, removePaint, isSpacePressed, isSelecting, selectionStartPos, selectionEndPos, nodes, selectedNodeIds, setSelection, dragRef, activeGroupId, pushSnapshot, isResizingText, isResizingImage]);
 
     // Refs to store latest state
     const zoomRef = useRef(zoom);
@@ -1447,6 +1528,42 @@ export default function Canvas() {
         };
     }, [setZoom, setPan]);
 
+    const handleCanvasDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        const hasImage = Array.from(e.dataTransfer?.files || []).some((file) => file.type.startsWith("image/"));
+        if (!hasImage) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setIsDraggingFiles(true);
+    };
+
+    const handleCanvasDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setIsDraggingFiles(false);
+    };
+
+    const handleCanvasDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+        const file = Array.from(e.dataTransfer?.files || []).find((candidate) => candidate.type.startsWith("image/"));
+        setIsDraggingFiles(false);
+        if (!file) return;
+
+        e.preventDefault();
+
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const worldX = (e.clientX - rect.left - pan.x) / zoom;
+        const worldY = (e.clientY - rect.top - pan.y) / zoom;
+
+        try {
+            await uploadImageToCanvas(file, { x: worldX, y: worldY });
+        } catch (error) {
+            console.error("Failed to upload dropped image", error);
+            if (typeof window !== "undefined") {
+                window.alert(error instanceof Error ? `이미지 업로드 실패: ${error.message}` : "이미지 업로드 실패");
+            }
+        }
+    };
+
     const existingGroupIds = new Set(nodes.filter((n) => n.type === 'GROUP').map((n) => n.id));
 
     return (
@@ -1454,6 +1571,9 @@ export default function Canvas() {
             ref={containerRef}
             className={`absolute inset-0 overflow-hidden ${isSpacePressed ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : (isPanning ? 'cursor-grabbing' : 'cursor-default')}`}
             style={{ backgroundColor: isDeepCanvasMode ? "#17191F" : "#22242B" }}
+            onDragOver={handleCanvasDragOver}
+            onDragLeave={handleCanvasDragLeave}
+            onDrop={handleCanvasDrop}
             onPointerMove={(e) => {
                 const container = containerRef.current;
                 if (!container) return;
@@ -1593,6 +1713,12 @@ export default function Canvas() {
             }}
         >
             <DimOverlay />
+
+            {isDraggingFiles && (
+                <div className="absolute inset-0 z-[110] flex items-center justify-center border-2 border-dashed border-blue-400 bg-blue-500/10 text-sm font-medium text-blue-200 pointer-events-none">
+                    Drop image to upload
+                </div>
+            )}
 
             {showGrid && (
                 <svg className="absolute inset-0 pointer-events-none z-0" width="100%" height="100%">
@@ -1906,6 +2032,66 @@ export default function Canvas() {
                                                     borderRadius: 2,
                                                 }}
                                                 onPointerDown={(e) => startTextResize(e, node, handle.key as "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw")}
+                                            />
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        );
+                    } else if (node.type === 'IMAGE') {
+                        return (
+                            <div
+                                key={node.id}
+                                className={`absolute overflow-hidden ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                                style={{
+                                    left: screen.x,
+                                    top: screen.y,
+                                    width: screen.width,
+                                    height: screen.height,
+                                    pointerEvents,
+                                    opacity,
+                                    backgroundColor: "#0F141D",
+                                    border: "2px solid #E2E8F0",
+                                    borderRadius: "0px",
+                                    boxShadow: "4px 4px 0px 0px #000",
+                                }}
+                                onPointerDown={(e) => startNodeDrag(e, node)}
+                                title={node.name || "Image"}
+                            >
+                                <img
+                                    src={node.imageUrl}
+                                    alt={node.name || "Uploaded image"}
+                                    draggable={false}
+                                    className="h-full w-full select-none"
+                                    style={{
+                                        objectFit: node.fit || "cover",
+                                        pointerEvents: "none",
+                                        userSelect: "none",
+                                    }}
+                                />
+                                {isSelected && (
+                                    <>
+                                        {[
+                                            { key: "n", cursor: "ns-resize", style: { top: -IMAGE_RESIZE_HANDLE_SIZE / 2, left: IMAGE_RESIZE_HANDLE_SIZE, right: IMAGE_RESIZE_HANDLE_SIZE, height: IMAGE_RESIZE_HANDLE_SIZE } },
+                                            { key: "s", cursor: "ns-resize", style: { bottom: -IMAGE_RESIZE_HANDLE_SIZE / 2, left: IMAGE_RESIZE_HANDLE_SIZE, right: IMAGE_RESIZE_HANDLE_SIZE, height: IMAGE_RESIZE_HANDLE_SIZE } },
+                                            { key: "e", cursor: "ew-resize", style: { right: -IMAGE_RESIZE_HANDLE_SIZE / 2, top: IMAGE_RESIZE_HANDLE_SIZE, bottom: IMAGE_RESIZE_HANDLE_SIZE, width: IMAGE_RESIZE_HANDLE_SIZE } },
+                                            { key: "w", cursor: "ew-resize", style: { left: -IMAGE_RESIZE_HANDLE_SIZE / 2, top: IMAGE_RESIZE_HANDLE_SIZE, bottom: IMAGE_RESIZE_HANDLE_SIZE, width: IMAGE_RESIZE_HANDLE_SIZE } },
+                                            { key: "ne", cursor: "nesw-resize", style: { top: -IMAGE_RESIZE_HANDLE_SIZE / 2, right: -IMAGE_RESIZE_HANDLE_SIZE / 2, width: IMAGE_RESIZE_HANDLE_SIZE, height: IMAGE_RESIZE_HANDLE_SIZE } },
+                                            { key: "nw", cursor: "nwse-resize", style: { top: -IMAGE_RESIZE_HANDLE_SIZE / 2, left: -IMAGE_RESIZE_HANDLE_SIZE / 2, width: IMAGE_RESIZE_HANDLE_SIZE, height: IMAGE_RESIZE_HANDLE_SIZE } },
+                                            { key: "se", cursor: "nwse-resize", style: { bottom: -IMAGE_RESIZE_HANDLE_SIZE / 2, right: -IMAGE_RESIZE_HANDLE_SIZE / 2, width: IMAGE_RESIZE_HANDLE_SIZE, height: IMAGE_RESIZE_HANDLE_SIZE } },
+                                            { key: "sw", cursor: "nesw-resize", style: { bottom: -IMAGE_RESIZE_HANDLE_SIZE / 2, left: -IMAGE_RESIZE_HANDLE_SIZE / 2, width: IMAGE_RESIZE_HANDLE_SIZE, height: IMAGE_RESIZE_HANDLE_SIZE } },
+                                        ].map((handle) => (
+                                            <div
+                                                key={handle.key}
+                                                className="absolute"
+                                                style={{
+                                                    ...handle.style,
+                                                    cursor: handle.cursor,
+                                                    pointerEvents: "auto",
+                                                    background: "rgba(96, 165, 250, 0.55)",
+                                                    borderRadius: 2,
+                                                }}
+                                                onPointerDown={(e) => startImageResize(e, node, handle.key as "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw")}
                                             />
                                         ))}
                                     </>
