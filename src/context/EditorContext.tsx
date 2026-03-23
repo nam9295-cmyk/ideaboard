@@ -554,16 +554,46 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         });
     };
 
+    const cleanupImageFiles = async (targetNodes: CanvasNode[]) => {
+        const imageFileIds = Array.from(
+            new Set(
+                targetNodes
+                    .filter((node): node is Extract<CanvasNode, { type: "IMAGE" }> => node.type === "IMAGE")
+                    .map((node) => node.fileId)
+                    .filter(Boolean)
+            )
+        );
+
+        await Promise.all(
+            imageFileIds.map(async (fileId) => {
+                try {
+                    await storage.deleteFile(APPWRITE_UPLOADS_BUCKET_ID, fileId);
+                } catch (error) {
+                    console.error(`Failed to delete image file ${fileId}`, error);
+                }
+            })
+        );
+    };
+
     const deleteNode = (id: string) => {
+        const targetNode = nodes.find((n) => n.id === id);
         pushSnapshot();
         setNodes((prev) => prev.filter((n) => n.id !== id));
         setSelectedNodeIds((prev) => prev.filter((pid) => pid !== id));
+        if (targetNode) {
+            void cleanupImageFiles([targetNode]);
+        }
     };
 
     const deleteNodes = (ids: string[]) => {
+        const targetNodeIds = new Set(ids);
+        const targetNodes = nodes.filter((n) => targetNodeIds.has(n.id));
         pushSnapshot();
         setNodes((prev) => prev.filter((n) => !ids.includes(n.id)));
         setSelectedNodeIds((prev) => prev.filter((pid) => !ids.includes(pid)));
+        if (targetNodes.length > 0) {
+            void cleanupImageFiles(targetNodes);
+        }
     };
 
     const groupNodes = () => {
